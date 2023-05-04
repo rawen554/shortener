@@ -6,7 +6,8 @@ import (
 	"log"
 	"math/big"
 	"net/http"
-	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 const httpProtocol = "http://"
@@ -25,58 +26,58 @@ func GenerateRandomString(n int) (string, error) {
 	return string(ret), nil
 }
 
-func URLHandlerRoot(urls map[string][]byte) http.HandlerFunc {
-	return func(res http.ResponseWriter, req *http.Request) {
-		if req.Method == http.MethodPost {
-			shortURL(res, req, urls)
-			return
-		} else if req.Method == http.MethodGet {
-			redirectToOriginal(res, req, urls)
+func redirectToOriginal(ptrUrls *map[string][]byte) func(c *gin.Context) {
+	return func(c *gin.Context) {
+		res := c.Writer
+		urls := *ptrUrls
+		id := c.Param("id")
+		originalURL := urls[id]
+		if originalURL == nil {
+			res.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		res.WriteHeader(http.StatusBadRequest)
+		res.Header().Set("Location", string(originalURL))
+		res.WriteHeader(http.StatusTemporaryRedirect)
 	}
 }
 
-func redirectToOriginal(res http.ResponseWriter, req *http.Request, urls map[string][]byte) {
-	reqPathElements := strings.Split(req.URL.Path, "/")
-	id := reqPathElements[len(reqPathElements)-1]
-	originalURL := urls[id]
-	if originalURL == nil {
-		res.WriteHeader(http.StatusNotFound)
-		return
-	}
+func shortURL(ptrUrls *map[string][]byte) func(c *gin.Context) {
+	return func(c *gin.Context) {
+		req := c.Request
+		res := c.Writer
+		urls := *ptrUrls
+		defer req.Body.Close()
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	res.Header().Set("Location", string(originalURL))
-	res.WriteHeader(http.StatusTemporaryRedirect)
+		id, err := GenerateRandomString(8)
+		if err != nil {
+			log.Fatal(err)
+		}
+		urls[id] = body
+
+		res.Header().Set("Content-Type", "text/plain")
+		res.WriteHeader(http.StatusCreated)
+		res.Write([]byte(httpProtocol + req.Host + "/" + id))
+	}
 }
 
-func shortURL(res http.ResponseWriter, req *http.Request, urls map[string][]byte) {
-	defer req.Body.Close()
-	body, err := io.ReadAll(req.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
+func setupRouter(ptrUrls *map[string][]byte) *gin.Engine {
+	urls := *ptrUrls
+	r := gin.Default()
 
-	id, err := GenerateRandomString(8)
-	if err != nil {
-		log.Fatal(err)
-	}
-	urls[id] = body
+	r.GET("/:id", redirectToOriginal(&urls))
+	r.POST("/", shortURL(&urls))
 
-	res.Header().Set("Content-Type", "text/plain")
-	res.WriteHeader(http.StatusCreated)
-	res.Write([]byte(httpProtocol + req.Host + "/" + id))
+	return r
 }
 
 func main() {
 	var urls = make(map[string][]byte)
-	mux := http.NewServeMux()
-	mux.HandleFunc(`/`, URLHandlerRoot(urls))
 
-	err := http.ListenAndServe(`:8080`, mux)
-	if err != nil {
-		panic(err)
-	}
+	r := setupRouter(&urls)
+	log.Fatal(r.Run())
 }
