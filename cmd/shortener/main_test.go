@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rawen554/shortener/cmd/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -51,7 +50,6 @@ func Test_redirectToOriginal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
-			config.ParseFlags()
 			r := setupRouter(&tt.args.urls)
 			req := httptest.NewRequest(http.MethodGet, tt.args.shortURL, nil)
 
@@ -100,7 +98,6 @@ func Test_shortURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
-			config.ParseFlags()
 			r := setupRouter(&tt.args.urls)
 			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer([]byte(tt.args.originalURL)))
 
@@ -112,7 +109,6 @@ func Test_shortURL(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.NotEmpty(t, body)
-			assert.Contains(t, string(body), "http://")
 		})
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rawen554/shortener/cmd/config"
 )
 
 func GenerateRandomString(n int) (string, error) {
@@ -58,7 +57,7 @@ func shortURL(ptrUrls map[string][]byte) func(c *gin.Context) {
 
 		res.Header().Set("Content-Type", "text/plain")
 		res.WriteHeader(http.StatusCreated)
-		res.Write([]byte(config.Config.RedirectBaseURL + "/" + id))
+		res.Write([]byte(config.redirectBaseURL + "/" + id))
 	}
 }
 
@@ -72,9 +71,9 @@ func setupRouter(ptrUrls *map[string][]byte) *gin.Engine {
 }
 
 func main() {
-	config.ParseFlags()
+	parseFlags()
 	var urls = make(map[string][]byte)
 
 	r := setupRouter(&urls)
-	log.Fatal(r.Run(config.Config.FlagRunAddr))
+	log.Fatal(r.Run(config.flagRunAddr))
 }
