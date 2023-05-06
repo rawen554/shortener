@@ -8,9 +8,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rawen554/shortener/cmd/config"
 )
-
-const httpProtocol = "http://"
 
 func GenerateRandomString(n int) (string, error) {
 	const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -26,12 +25,11 @@ func GenerateRandomString(n int) (string, error) {
 	return string(ret), nil
 }
 
-func redirectToOriginal(ptrUrls *map[string][]byte) func(c *gin.Context) {
+func redirectToOriginal(ptrUrls map[string][]byte) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		res := c.Writer
-		urls := *ptrUrls
 		id := c.Param("id")
-		originalURL := urls[id]
+		originalURL := ptrUrls[id]
 		if originalURL == nil {
 			res.WriteHeader(http.StatusNotFound)
 			return
@@ -42,11 +40,10 @@ func redirectToOriginal(ptrUrls *map[string][]byte) func(c *gin.Context) {
 	}
 }
 
-func shortURL(ptrUrls *map[string][]byte) func(c *gin.Context) {
+func shortURL(ptrUrls map[string][]byte) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		req := c.Request
 		res := c.Writer
-		urls := *ptrUrls
 		defer req.Body.Close()
 		body, err := io.ReadAll(req.Body)
 		if err != nil {
@@ -57,27 +54,27 @@ func shortURL(ptrUrls *map[string][]byte) func(c *gin.Context) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		urls[id] = body
+		ptrUrls[id] = body
 
 		res.Header().Set("Content-Type", "text/plain")
 		res.WriteHeader(http.StatusCreated)
-		res.Write([]byte(httpProtocol + req.Host + "/" + id))
+		res.Write([]byte(config.Config.RedirectBaseURL + "/" + id))
 	}
 }
 
 func setupRouter(ptrUrls *map[string][]byte) *gin.Engine {
-	urls := *ptrUrls
 	r := gin.Default()
 
-	r.GET("/:id", redirectToOriginal(&urls))
-	r.POST("/", shortURL(&urls))
+	r.GET("/:id", redirectToOriginal(*ptrUrls))
+	r.POST("/", shortURL(*ptrUrls))
 
 	return r
 }
 
 func main() {
+	config.ParseFlags()
 	var urls = make(map[string][]byte)
 
 	r := setupRouter(&urls)
-	log.Fatal(r.Run())
+	log.Fatal(r.Run(config.Config.FlagRunAddr))
 }
