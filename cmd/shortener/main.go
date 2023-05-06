@@ -57,7 +57,7 @@ func shortURL(ptrUrls map[string][]byte) func(c *gin.Context) {
 
 		res.Header().Set("Content-Type", "text/plain")
 		res.WriteHeader(http.StatusCreated)
-		res.Write([]byte(config.redirectBaseURL + "/" + id))
+		res.Write([]byte(config.RedirectBaseURL + "/" + id))
 	}
 }
 
@@ -75,5 +75,5 @@ func main() {
 	var urls = make(map[string][]byte)
 
 	r := setupRouter(&urls)
-	log.Fatal(r.Run(config.flagRunAddr))
+	log.Fatal(r.Run(config.FlagRunAddr))
 }
