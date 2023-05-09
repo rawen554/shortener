@@ -50,7 +50,7 @@ func Test_redirectToOriginal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
-			r := setupRouter(&tt.args.urls)
+			r := setupRouter(tt.args.urls)
 			req := httptest.NewRequest(http.MethodGet, tt.args.shortURL, nil)
 
 			r.ServeHTTP(w, req)
@@ -98,7 +98,7 @@ func Test_shortURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
-			r := setupRouter(&tt.args.urls)
+			r := setupRouter(tt.args.urls)
 			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer([]byte(tt.args.originalURL)))
 
 			r.ServeHTTP(w, req)
