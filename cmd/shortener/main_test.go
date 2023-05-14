@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rawen554/shortener/internal/handlers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,7 +51,8 @@ func Test_redirectToOriginal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
-			r := setupRouter(tt.args.urls)
+			syncmap := handlers.NewSyncURLMap(tt.args.urls)
+			r := setupRouter(syncmap)
 			req := httptest.NewRequest(http.MethodGet, tt.args.shortURL, nil)
 
 			r.ServeHTTP(w, req)
@@ -80,7 +82,7 @@ func Test_shortURL(t *testing.T) {
 		{
 			name: "add new url to empty map",
 			args: args{
-				urls:        map[string][]byte{},
+				urls:        make(map[string][]byte),
 				originalURL: "https://ya.ru",
 			},
 		},
@@ -88,17 +90,19 @@ func Test_shortURL(t *testing.T) {
 			name: "add new url to map",
 			args: args{
 				urls: map[string][]byte{
-					"abc": []byte("https://ya.ru"),
+					"abc": []byte("https://ya.com"),
 				},
 				originalURL: "https://ya.ru",
 			},
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
-			r := setupRouter(tt.args.urls)
+			syncmap := handlers.NewSyncURLMap(tt.args.urls)
+			r := setupRouter(syncmap)
 			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer([]byte(tt.args.originalURL)))
 
 			r.ServeHTTP(w, req)

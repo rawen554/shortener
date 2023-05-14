@@ -8,22 +8,21 @@ import (
 	"github.com/rawen554/shortener/internal/handlers"
 )
 
-func setupRouter(urls map[string][]byte) *gin.Engine {
+func setupRouter(m handlers.SyncURLMap) *gin.Engine {
 	r := gin.Default()
 
-	r.GET("/:id", handlers.RedirectToOriginal(urls))
-	r.POST("/", handlers.ShortenURL(urls))
+	r.GET("/:id", handlers.RedirectToOriginal(m))
+	r.POST("/", handlers.ShortenURL(m))
 
 	return r
 }
 
 func main() {
-	err := flags.ParseFlags()
-	if err != nil {
-		panic(err)
+	if err := flags.ParseFlags(); err != nil {
+		log.Fatal(err)
 	}
-	var urls = make(map[string][]byte)
+	m := handlers.NewSyncURLMap(make(map[string][]byte))
 
-	r := setupRouter(urls)
+	r := setupRouter(m)
 	log.Fatal(r.Run(flags.Config.FlagRunAddr))
 }
