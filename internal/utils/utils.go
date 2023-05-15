@@ -1,13 +1,13 @@
 package utils
 
 import (
-	"errors"
+	"fmt"
 	"math/rand"
 )
 
 func GenerateRandomString(n int) (string, error) {
-	if n < 0 {
-		return "", errors.New("negative length")
+	if n <= 0 {
+		return "", fmt.Errorf("wrong string length: %d", n)
 	}
 	const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	ret := make([]byte, n)

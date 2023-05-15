@@ -4,25 +4,27 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rawen554/shortener/internal/flags"
-	"github.com/rawen554/shortener/internal/handlers"
+	"github.com/rawen554/shortener/internal/app"
+	"github.com/rawen554/shortener/internal/config"
+	"github.com/rawen554/shortener/internal/store"
 )
 
-func setupRouter(m handlers.SyncURLMap) *gin.Engine {
+func setupRouter(a *app.App) *gin.Engine {
 	r := gin.Default()
 
-	r.GET("/:id", handlers.RedirectToOriginal(m))
-	r.POST("/", handlers.ShortenURL(m))
+	r.GET("/:id", a.RedirectToOriginal)
+	r.POST("/", a.ShortenURL)
 
 	return r
 }
 
 func main() {
-	if err := flags.ParseFlags(); err != nil {
+	config, err := config.ParseFlags()
+	if err != nil {
 		log.Fatal(err)
 	}
-	m := handlers.NewSyncURLMap(make(map[string][]byte))
+	app := app.NewApp(config, store.NewStorage(make(map[string][]byte)))
 
-	r := setupRouter(m)
-	log.Fatal(r.Run(flags.Config.FlagRunAddr))
+	r := setupRouter(app)
+	log.Fatal(r.Run(config.FlagRunAddr))
 }

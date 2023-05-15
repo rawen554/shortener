@@ -48,7 +48,7 @@ func TestGenerateRandomString(t *testing.T) {
 			args: args{
 				n: 0,
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
