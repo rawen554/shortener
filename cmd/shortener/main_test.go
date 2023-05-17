@@ -54,7 +54,13 @@ func Test_redirectToOriginal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
-			app := app.NewApp(&config.ServerConfig{}, store.NewStorage(tt.args.urls))
+
+			storage := store.NewStorage()
+			for url := range tt.args.urls {
+				storage.Put(url, tt.args.urls[url])
+			}
+
+			app := app.NewApp(&config.ServerConfig{}, storage)
 			r := setupRouter(app)
 			req := httptest.NewRequest(http.MethodGet, tt.args.shortURL, nil)
 
@@ -104,7 +110,13 @@ func Test_shortURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
-			app := app.NewApp(&config.ServerConfig{}, store.NewStorage(tt.args.urls))
+
+			storage := store.NewStorage()
+			for url := range tt.args.urls {
+				storage.Put(url, tt.args.urls[url])
+			}
+
+			app := app.NewApp(&config.ServerConfig{}, storage)
 			r := setupRouter(app)
 			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer([]byte(tt.args.originalURL)))
 

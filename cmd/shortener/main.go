@@ -23,7 +23,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	app := app.NewApp(config, store.NewStorage(make(map[string][]byte)))
+	app := app.NewApp(config, store.NewStorage())
 
 	r := setupRouter(app)
 	log.Fatal(r.Run(config.FlagRunAddr))

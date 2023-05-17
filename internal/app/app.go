@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -43,18 +44,21 @@ func (a *App) ShortenURL(c *gin.Context) {
 	res := c.Writer
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
+		fmt.Printf("body cannot be read: %s\n", err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	id, err := utils.GenerateRandomString(8)
 	if err != nil {
+		fmt.Printf("random string generator error: %s\n", err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	result, err := url.JoinPath(a.config.RedirectBaseURL, id)
 	if err != nil {
+		fmt.Printf("URL cannot be joined: %s\n", err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}

@@ -7,22 +7,22 @@ type Storage struct {
 	urls map[string][]byte
 }
 
-func NewStorage(urls map[string][]byte) *Storage {
+func NewStorage() *Storage {
 	return &Storage{
 		mux:  &sync.Mutex{},
-		urls: urls,
+		urls: make(map[string][]byte),
 	}
 }
 
 func (s *Storage) Put(id string, url []byte) {
 	s.mux.Lock()
+	defer s.mux.Unlock()
 	s.urls[id] = url
-	s.mux.Unlock()
 }
 
 func (s *Storage) Get(id string) []byte {
 	s.mux.Lock()
+	defer s.mux.Unlock()
 	originalURL := s.urls[id]
-	s.mux.Unlock()
 	return originalURL
 }
