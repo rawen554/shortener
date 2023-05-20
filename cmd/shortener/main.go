@@ -6,11 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rawen554/shortener/internal/app"
 	"github.com/rawen554/shortener/internal/config"
+	ginLogger "github.com/rawen554/shortener/internal/logger"
 	"github.com/rawen554/shortener/internal/store"
 )
 
 func setupRouter(a *app.App) *gin.Engine {
-	r := gin.Default()
+	r := gin.New()
+	r.Use(ginLogger.Logger())
 
 	r.GET("/:id", a.RedirectToOriginal)
 	r.POST("/", a.ShortenURL)
