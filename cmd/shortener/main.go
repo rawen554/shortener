@@ -17,6 +17,11 @@ func setupRouter(a *app.App) *gin.Engine {
 	r.GET("/:id", a.RedirectToOriginal)
 	r.POST("/", a.ShortenURL)
 
+	api := r.Group("/api")
+	{
+		api.POST("/shorten", a.ShortenURL)
+	}
+
 	return r
 }
 
