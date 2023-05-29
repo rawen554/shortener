@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/rawen554/shortener/internal/app"
 	"github.com/rawen554/shortener/internal/config"
@@ -13,6 +14,7 @@ import (
 func setupRouter(a *app.App) *gin.Engine {
 	r := gin.New()
 	r.Use(ginLogger.Logger())
+	r.Use(gzip.Gzip(gzip.BestCompression, gzip.WithDecompressFn(gzip.DefaultDecompressHandle)))
 
 	r.GET("/:id", a.RedirectToOriginal)
 	r.POST("/", a.ShortenURL)
