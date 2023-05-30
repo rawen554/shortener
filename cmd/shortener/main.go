@@ -32,7 +32,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	app := app.NewApp(config, store.NewStorage())
+	storage, err := store.NewStorage(config.FileStoragePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	app := app.NewApp(config, storage)
 
 	r := setupRouter(app)
 	log.Fatal(r.Run(config.FlagRunAddr))

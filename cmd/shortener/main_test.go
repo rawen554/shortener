@@ -56,7 +56,10 @@ func Test_redirectToOriginal(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 
-			storage := store.NewStorage()
+			storage, err := store.NewStorage("./test.json")
+			if err != nil {
+				panic(err)
+			}
 			for url := range tt.args.urls {
 				storage.Put(url, tt.args.urls[url])
 			}
@@ -112,7 +115,10 @@ func Test_shortURL_V1(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 
-			storage := store.NewStorage()
+			storage, err := store.NewStorage("./test.json")
+			if err != nil {
+				panic(err)
+			}
 			for url := range tt.args.urls {
 				storage.Put(url, tt.args.urls[url])
 			}
@@ -166,7 +172,10 @@ func Test_shortURL_V2(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 
-			storage := store.NewStorage()
+			storage, err := store.NewStorage("./test.json")
+			if err != nil {
+				panic(err)
+			}
 			for url := range tt.args.urls {
 				storage.Put(url, tt.args.urls[url])
 			}
