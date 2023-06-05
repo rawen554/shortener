@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	App "github.com/rawen554/shortener/internal/app"
+	"github.com/rawen554/shortener/internal/app"
 	"github.com/rawen554/shortener/internal/config"
 	"github.com/rawen554/shortener/internal/store"
 	"github.com/stretchr/testify/assert"
@@ -58,14 +58,17 @@ func Test_redirectToOriginal(t *testing.T) {
 
 			storage, err := store.NewStorage("./test.json")
 			if err != nil {
-				panic(err)
+				t.Errorf("failed to initialize a new storage: %v", err)
+				return
 			}
+			defer storage.DeleteStorageFile()
+
 			for url := range tt.args.urls {
 				storage.Put(url, tt.args.urls[url])
 			}
 
-			app := App.NewApp(&config.ServerConfig{}, storage)
-			r := setupRouter(app)
+			testApp := app.NewApp(&config.ServerConfig{}, storage)
+			r := setupRouter(testApp)
 			req := httptest.NewRequest(http.MethodGet, tt.args.shortURL, nil)
 
 			r.ServeHTTP(w, req)
@@ -117,14 +120,17 @@ func Test_shortURL_V1(t *testing.T) {
 
 			storage, err := store.NewStorage("./test.json")
 			if err != nil {
-				panic(err)
+				t.Errorf("failed to initialize a new storage: %v", err)
+				return
 			}
+			defer storage.DeleteStorageFile()
+
 			for url := range tt.args.urls {
 				storage.Put(url, tt.args.urls[url])
 			}
 
-			app := App.NewApp(&config.ServerConfig{}, storage)
-			r := setupRouter(app)
+			testApp := app.NewApp(&config.ServerConfig{}, storage)
+			r := setupRouter(testApp)
 			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer([]byte(tt.args.originalURL)))
 			req.Header.Add("Content-Type", "text/plain")
 
@@ -174,15 +180,18 @@ func Test_shortURL_V2(t *testing.T) {
 
 			storage, err := store.NewStorage("./test.json")
 			if err != nil {
-				panic(err)
+				t.Errorf("failed to initialize a new storage: %v", err)
+				return
 			}
+			defer storage.DeleteStorageFile()
+
 			for url := range tt.args.urls {
 				storage.Put(url, tt.args.urls[url])
 			}
 
-			app := App.NewApp(&config.ServerConfig{}, storage)
-			r := setupRouter(app)
-			reqObj := App.ShortenReq{
+			testApp := app.NewApp(&config.ServerConfig{}, storage)
+			r := setupRouter(testApp)
+			reqObj := app.ShortenReq{
 				URL: tt.args.originalURL,
 			}
 			obj, err := json.Marshal(reqObj)

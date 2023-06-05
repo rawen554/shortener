@@ -4,17 +4,18 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"os"
 	"strconv"
 	"sync"
 )
 
 type Storage struct {
-	mux  *sync.Mutex
-	urls map[string]string
-	sr   *StorageReader
-	sw   *StorageWriter
+	path      string
+	mux       *sync.Mutex
+	urls      map[string]string
+	urlsCount int
+	sr        *StorageReader
+	sw        *StorageWriter
 }
 
 type Record struct {
@@ -31,7 +32,7 @@ func NewStorage(filename string) (*Storage, error) {
 
 	records, err := sr.ReadFromFile()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	sw, err := NewStorageWriter(filename)
@@ -40,11 +41,17 @@ func NewStorage(filename string) (*Storage, error) {
 	}
 
 	return &Storage{
-		mux:  &sync.Mutex{},
-		urls: records,
-		sr:   sr,
-		sw:   sw,
+		path:      filename,
+		mux:       &sync.Mutex{},
+		urls:      records,
+		urlsCount: len(records),
+		sr:        sr,
+		sw:        sw,
 	}, nil
+}
+
+func (s *Storage) DeleteStorageFile() error {
+	return os.Remove(s.path)
 }
 
 type StorageReader struct {
@@ -71,7 +78,7 @@ func (sr *StorageReader) ReadFromFile() (map[string]string, error) {
 		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
-			log.Fatal(err)
+			return nil, err
 		}
 		records[r.ShortURL] = r.OriginalURL
 	}
@@ -113,7 +120,8 @@ func (s *Storage) Put(id string, url string) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	s.urls[id] = url
-	s.sw.AppendToFile(&Record{UUID: strconv.Itoa(len(s.urls)), OriginalURL: url, ShortURL: id})
+	s.urlsCount += 1
+	s.sw.AppendToFile(&Record{UUID: strconv.Itoa(s.urlsCount), OriginalURL: url, ShortURL: id})
 }
 
 func (s *Storage) Get(id string) string {
