@@ -1,6 +1,7 @@
 package app
 
 import (
+	"database/sql"
 	"encoding/json"
 	"io"
 	"log"
@@ -8,6 +9,7 @@ import (
 	"net/url"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/rawen554/shortener/internal/config"
 	"github.com/rawen554/shortener/internal/store"
 	"github.com/rawen554/shortener/internal/utils"
@@ -115,4 +117,14 @@ func (a *App) ShortenURL(c *gin.Context) {
 			return
 		}
 	}
+}
+
+func (a *App) DBHealthCheck(c *gin.Context) {
+	db, err := sql.Open("pgx", a.config.DatabaseDSN)
+	if err != nil {
+		c.Writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+	c.Writer.WriteHeader(http.StatusOK)
 }
