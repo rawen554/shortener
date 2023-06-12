@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,7 +18,7 @@ import (
 
 func Test_redirectToOriginal(t *testing.T) {
 	type args struct {
-		urls           map[string][]byte
+		urls           map[string]string
 		shortURL       string
 		originalURL    string
 		shouldRedirect bool
@@ -29,8 +30,8 @@ func Test_redirectToOriginal(t *testing.T) {
 		{
 			name: "simple redirect",
 			args: args{
-				urls: map[string][]byte{
-					"1": []byte("http://ya.ru"),
+				urls: map[string]string{
+					"1": "http://ya.ru",
 				},
 				originalURL:    "http://ya.ru",
 				shortURL:       "/1",
@@ -40,8 +41,8 @@ func Test_redirectToOriginal(t *testing.T) {
 		{
 			name: "error short url not found",
 			args: args{
-				urls: map[string][]byte{
-					"1": []byte("http://ya.ru"),
+				urls: map[string]string{
+					"1": "http://ya.ru",
 				},
 				originalURL:    "http://ya.ru",
 				shortURL:       "/2",
@@ -55,13 +56,19 @@ func Test_redirectToOriginal(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 
-			storage := store.NewStorage()
+			storage, err := store.NewStorage("./test.json")
+			if err != nil {
+				t.Errorf("failed to initialize a new storage: %v", err)
+				return
+			}
+			defer storage.DeleteStorageFile()
+
 			for url := range tt.args.urls {
 				storage.Put(url, tt.args.urls[url])
 			}
 
-			app := app.NewApp(&config.ServerConfig{}, storage)
-			r := setupRouter(app)
+			testApp := app.NewApp(&config.ServerConfig{}, storage)
+			r := setupRouter(testApp)
 			req := httptest.NewRequest(http.MethodGet, tt.args.shortURL, nil)
 
 			r.ServeHTTP(w, req)
@@ -79,9 +86,9 @@ func Test_redirectToOriginal(t *testing.T) {
 	}
 }
 
-func Test_shortURL(t *testing.T) {
+func Test_shortURL_V1(t *testing.T) {
 	type args struct {
-		urls        map[string][]byte
+		urls        map[string]string
 		originalURL string
 	}
 	tests := []struct {
@@ -91,15 +98,15 @@ func Test_shortURL(t *testing.T) {
 		{
 			name: "add new url to empty map",
 			args: args{
-				urls:        make(map[string][]byte),
+				urls:        make(map[string]string),
 				originalURL: "https://ya.ru",
 			},
 		},
 		{
 			name: "add new url to map",
 			args: args{
-				urls: map[string][]byte{
-					"abc": []byte("https://ya.com"),
+				urls: map[string]string{
+					"abc": "https://ya.com",
 				},
 				originalURL: "https://ya.ru",
 			},
@@ -111,14 +118,86 @@ func Test_shortURL(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 
-			storage := store.NewStorage()
+			storage, err := store.NewStorage("./test.json")
+			if err != nil {
+				t.Errorf("failed to initialize a new storage: %v", err)
+				return
+			}
+			defer storage.DeleteStorageFile()
+
 			for url := range tt.args.urls {
 				storage.Put(url, tt.args.urls[url])
 			}
 
-			app := app.NewApp(&config.ServerConfig{}, storage)
-			r := setupRouter(app)
+			testApp := app.NewApp(&config.ServerConfig{}, storage)
+			r := setupRouter(testApp)
 			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer([]byte(tt.args.originalURL)))
+			req.Header.Add("Content-Type", "text/plain")
+
+			r.ServeHTTP(w, req)
+
+			res := w.Result()
+			defer res.Body.Close()
+			body, err := io.ReadAll(res.Body)
+
+			require.NoError(t, err)
+			assert.NotEmpty(t, body)
+		})
+	}
+}
+
+func Test_shortURL_V2(t *testing.T) {
+	type args struct {
+		urls        map[string]string
+		originalURL string
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "add new url to empty map",
+			args: args{
+				urls:        make(map[string]string),
+				originalURL: "https://ya.ru",
+			},
+		},
+		{
+			name: "add new url to map",
+			args: args{
+				urls: map[string]string{
+					"abc": "https://ya.com",
+				},
+				originalURL: "https://ya.ru",
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			w := httptest.NewRecorder()
+
+			storage, err := store.NewStorage("./test.json")
+			if err != nil {
+				t.Errorf("failed to initialize a new storage: %v", err)
+				return
+			}
+			defer storage.DeleteStorageFile()
+
+			for url := range tt.args.urls {
+				storage.Put(url, tt.args.urls[url])
+			}
+
+			testApp := app.NewApp(&config.ServerConfig{}, storage)
+			r := setupRouter(testApp)
+			reqObj := app.ShortenReq{
+				URL: tt.args.originalURL,
+			}
+			obj, err := json.Marshal(reqObj)
+			require.NoError(t, err)
+			req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewBuffer(obj))
+			req.Header.Add("Content-Type", "application/json")
 
 			r.ServeHTTP(w, req)
 
