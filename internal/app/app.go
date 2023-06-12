@@ -11,14 +11,18 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/rawen554/shortener/internal/config"
-	"github.com/rawen554/shortener/internal/store"
 	"github.com/rawen554/shortener/internal/utils"
 )
+
+type GenericStore struct {
+	Get func(id string) (string, error)
+	Put func(id string, url string) error
+}
 
 type (
 	App struct {
 		config *config.ServerConfig
-		store  *store.Storage
+		store  *GenericStore
 	}
 
 	ShortenReq struct {
@@ -30,7 +34,7 @@ type (
 	}
 )
 
-func NewApp(config *config.ServerConfig, storage *store.Storage) *App {
+func NewApp(config *config.ServerConfig, storage *GenericStore) *App {
 	return &App{
 		config: config,
 		store:  storage,
@@ -41,7 +45,12 @@ func (a *App) RedirectToOriginal(c *gin.Context) {
 	res := c.Writer
 	id := c.Param("id")
 
-	originalURL := a.store.Get(id)
+	originalURL, err := a.store.Get(id)
+	if err != nil {
+		log.Printf("Error getting original URL: %v", err)
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	if originalURL == "" {
 		res.WriteHeader(http.StatusNotFound)

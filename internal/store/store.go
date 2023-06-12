@@ -116,17 +116,17 @@ func (sw *StorageWriter) AppendToFile(r *Record) error {
 	return sw.encoder.Encode(&r)
 }
 
-func (s *Storage) Put(id string, url string) {
+func (s *Storage) Put(id string, url string) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	s.urls[id] = url
 	s.urlsCount += 1
-	s.sw.AppendToFile(&Record{UUID: strconv.Itoa(s.urlsCount), OriginalURL: url, ShortURL: id})
+	return s.sw.AppendToFile(&Record{UUID: strconv.Itoa(s.urlsCount), OriginalURL: url, ShortURL: id})
 }
 
-func (s *Storage) Get(id string) string {
+func (s *Storage) Get(id string) (string, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	originalURL := s.urls[id]
-	return originalURL
+	return originalURL, nil
 }

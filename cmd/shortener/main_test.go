@@ -56,18 +56,22 @@ func Test_redirectToOriginal(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 
-			storage, err := store.NewStorage("./test.json")
+			s, err := store.NewStorage("./test.json")
 			if err != nil {
 				t.Errorf("failed to initialize a new storage: %v", err)
 				return
 			}
-			defer storage.DeleteStorageFile()
+			defer s.DeleteStorageFile()
+
+			var storage app.GenericStore
+			storage.Get = s.Get
+			storage.Put = s.Put
 
 			for url := range tt.args.urls {
 				storage.Put(url, tt.args.urls[url])
 			}
 
-			testApp := app.NewApp(&config.ServerConfig{}, storage)
+			testApp := app.NewApp(&config.ServerConfig{}, &storage)
 			r := setupRouter(testApp)
 			req := httptest.NewRequest(http.MethodGet, tt.args.shortURL, nil)
 
@@ -118,18 +122,22 @@ func Test_shortURL_V1(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 
-			storage, err := store.NewStorage("./test.json")
+			s, err := store.NewStorage("./test.json")
 			if err != nil {
 				t.Errorf("failed to initialize a new storage: %v", err)
 				return
 			}
-			defer storage.DeleteStorageFile()
+			defer s.DeleteStorageFile()
+
+			var storage app.GenericStore
+			storage.Get = s.Get
+			storage.Put = s.Put
 
 			for url := range tt.args.urls {
 				storage.Put(url, tt.args.urls[url])
 			}
 
-			testApp := app.NewApp(&config.ServerConfig{}, storage)
+			testApp := app.NewApp(&config.ServerConfig{}, &storage)
 			r := setupRouter(testApp)
 			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer([]byte(tt.args.originalURL)))
 			req.Header.Add("Content-Type", "text/plain")
@@ -178,18 +186,22 @@ func Test_shortURL_V2(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 
-			storage, err := store.NewStorage("./test.json")
+			s, err := store.NewStorage("./test.json")
 			if err != nil {
 				t.Errorf("failed to initialize a new storage: %v", err)
 				return
 			}
-			defer storage.DeleteStorageFile()
+			defer s.DeleteStorageFile()
+
+			var storage app.GenericStore
+			storage.Get = s.Get
+			storage.Put = s.Put
 
 			for url := range tt.args.urls {
 				storage.Put(url, tt.args.urls[url])
 			}
 
-			testApp := app.NewApp(&config.ServerConfig{}, storage)
+			testApp := app.NewApp(&config.ServerConfig{}, &storage)
 			r := setupRouter(testApp)
 			reqObj := app.ShortenReq{
 				URL: tt.args.originalURL,
