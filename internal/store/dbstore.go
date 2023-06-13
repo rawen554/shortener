@@ -9,6 +9,15 @@ type DBStore struct {
 	*sql.DB
 }
 
+type BatchReq struct {
+	CorrelationID string `json:"correlation_id"`
+	OriginalURL   string `json:"original_url"`
+}
+type BatchRes struct {
+	CorrelationID string `json:"correlation_id"`
+	ShortURL      string `json:"short_url"`
+}
+
 func NewDBStore(dsn string) (*DBStore, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -33,9 +42,37 @@ func (db *DBStore) Get(id string) (string, error) {
 	return result, nil
 }
 
+func (db *DBStore) GetBatch(batch []BatchReq) ([]BatchRes, error) {
+	result := make([]BatchRes, 0)
+	for _, url := range batch {
+		shortURL, err := db.Get(url.CorrelationID)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, BatchRes{CorrelationID: url.CorrelationID, ShortURL: shortURL})
+	}
+	return result, nil
+}
+
 func (db *DBStore) Put(id string, url string) error {
 	_, err := db.ExecContext(context.Background(), "INSERT INTO shortener VALUES ($1, $2)", id, url)
 	return err
+}
+
+func (db *DBStore) PutBatch(urls []BatchReq) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+
+	for _, url := range urls {
+		_, err := tx.ExecContext(context.Background(), "INSERT INTO shortener VALUES ($1, $2)", url.CorrelationID, url.OriginalURL)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (db *DBStore) DropTable() error {

@@ -11,12 +11,15 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/rawen554/shortener/internal/config"
+	"github.com/rawen554/shortener/internal/store"
 	"github.com/rawen554/shortener/internal/utils"
 )
 
 type GenericStore struct {
-	Get func(id string) (string, error)
-	Put func(id string, url string) error
+	Get      func(id string) (string, error)
+	GetBatch func(urls []store.BatchReq) ([]store.BatchRes, error)
+	Put      func(id string, url string) error
+	PutBatch func(urls []store.BatchReq) error
 }
 
 type (
@@ -59,6 +62,46 @@ func (a *App) RedirectToOriginal(c *gin.Context) {
 
 	res.Header().Set("Location", originalURL)
 	res.WriteHeader(http.StatusTemporaryRedirect)
+}
+
+func (a *App) ShortenBatch(c *gin.Context) {
+	req := c.Request
+	res := c.Writer
+
+	batch := make([]store.BatchReq, 0)
+	if err := json.NewDecoder(req.Body).Decode(&batch); err != nil {
+		log.Printf("Body cannot be decoded: %v", err)
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	err := a.store.PutBatch(batch)
+	if err != nil {
+		log.Printf("Cant put batch: %v", err)
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	result, err := a.store.GetBatch(batch)
+	if err != nil {
+		log.Printf("Cant get batch: %v", err)
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	for idx, urlObj := range result {
+		resultURL, err := url.JoinPath(a.config.RedirectBaseURL, urlObj.CorrelationID)
+		if err != nil {
+			log.Printf("URL cannot be joined: %v", err)
+			res.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		result[idx].ShortURL = resultURL
+	}
+
+	res.WriteHeader(http.StatusCreated)
+	res.Header().Add("Content-Type", "application/json")
+	json.NewEncoder(res).Encode(result)
 }
 
 func (a *App) ShortenURL(c *gin.Context) {
@@ -113,12 +156,12 @@ func (a *App) ShortenURL(c *gin.Context) {
 			res.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		res.Header().Set("Content-Type", "application/json")
+		res.Header().Add("Content-Type", "application/json")
 		res.WriteHeader(http.StatusCreated)
 		res.Write(resp)
 
 	case "/":
-		res.Header().Set("Content-Type", "text/plain")
+		res.Header().Add("Content-Type", "text/plain")
 		res.WriteHeader(http.StatusCreated)
 		if _, err := res.Write([]byte(resultURL)); err != nil {
 			log.Printf("Error writing body: %v", err)
