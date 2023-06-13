@@ -47,6 +47,7 @@ func main() {
 			log.Fatal(err)
 		}
 		storage.Get = s.Get
+		storage.GetByURL = s.GetByURL
 		storage.Put = s.Put
 		storage.PutBatch = s.PutBatch
 		storage.GetBatch = s.GetBatch

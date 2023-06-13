@@ -29,11 +29,23 @@ func NewDBStore(dsn string) (*DBStore, error) {
 		return nil, err
 	}
 
+	db.ExecContext(context.Background(), `CREATE UNIQUE INDEX url_idx ON shortener (url)`)
+
 	return dbStore, nil
 }
 
 func (db *DBStore) Get(id string) (string, error) {
 	row := db.QueryRowContext(context.Background(), "SELECT url FROM shortener WHERE id = $1", id)
+	var result string
+	err := row.Scan(&result)
+	if err != nil {
+		return "", err
+	}
+	return result, nil
+}
+
+func (db *DBStore) GetByURL(originalURL string) (string, error) {
+	row := db.QueryRowContext(context.Background(), "SELECT id FROM shortener WHERE url = $1", originalURL)
 	var result string
 	err := row.Scan(&result)
 	if err != nil {
@@ -82,7 +94,7 @@ func (db *DBStore) DropTable() error {
 
 func (db *DBStore) CreateTable() error {
 	_, err := db.ExecContext(context.Background(), "CREATE TABLE IF NOT EXISTS shortener( "+
-		"id VARCHAR(255) PRIMARY KEY, "+
+		"id VARCHAR(255) NOT NULL, "+
 		"url VARCHAR(255) NOT NULL "+
 		");")
 	return err

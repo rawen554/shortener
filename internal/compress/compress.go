@@ -3,6 +3,7 @@ package compress
 import (
 	"compress/gzip"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -33,10 +34,7 @@ func (c *compressWriter) Write(p []byte) (int, error) {
 }
 
 func (c *compressWriter) WriteHeader(statusCode int) {
-	if statusCode < 300 {
-		c.Header().Set("Content-Encoding", "gzip")
-	}
-
+	c.Header().Set("Content-Encoding", "gzip")
 	c.ResponseWriter.WriteHeader(statusCode)
 }
 
@@ -93,6 +91,7 @@ func Compress() gin.HandlerFunc {
 			// оборачиваем тело запроса в io.Reader с поддержкой декомпрессии
 			cr, err := newCompressReader(c.Request.Body)
 			if err != nil {
+				log.Printf("Error compressing: %v", err)
 				c.Writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}

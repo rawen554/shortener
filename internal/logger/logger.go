@@ -1,6 +1,8 @@
 package logger
 
 import (
+	"bytes"
+	"io"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +20,11 @@ func Logger() (gin.HandlerFunc, error) {
 	return func(c *gin.Context) {
 		uri := c.Request.RequestURI
 		method := c.Request.Method
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			return
+		}
+		c.Request.Body = io.NopCloser(bytes.NewReader(body))
 
 		t := time.Now()
 		c.Next()
@@ -29,6 +36,7 @@ func Logger() (gin.HandlerFunc, error) {
 			"Duration", duration,
 			"Status", c.Writer.Status(),
 			"Size", c.Writer.Size(),
+			"Data", string(body),
 		)
 	}, nil
 }
