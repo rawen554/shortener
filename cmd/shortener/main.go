@@ -39,29 +39,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var storage app.GenericStore
-
-	if config.DatabaseDSN != "" {
-		s, err := store.NewDBStore(config.DatabaseDSN)
-		if err != nil {
-			log.Fatal(err)
-		}
-		storage.Get = s.Get
-		storage.GetByURL = s.GetByURL
-		storage.Put = s.Put
-		storage.PutBatch = s.PutBatch
-		storage.GetBatch = s.GetBatch
-		defer s.Close()
-	} else {
-		s, err := store.NewStorage(config.FileStoragePath)
-		if err != nil {
-			log.Fatal(err)
-		}
-		storage.Get = s.Get
-		storage.Put = s.Put
+	storage, err := store.NewStore(config)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	app := app.NewApp(config, &storage)
+	app := app.NewApp(config, storage)
 
 	r := setupRouter(app)
 	log.Fatal(r.Run(config.FlagRunAddr))

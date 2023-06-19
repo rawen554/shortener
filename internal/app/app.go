@@ -1,50 +1,38 @@
 package app
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"reflect"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/rawen554/shortener/internal/config"
-	"github.com/rawen554/shortener/internal/store"
+	"github.com/rawen554/shortener/internal/models"
+	"github.com/rawen554/shortener/internal/store/postgres"
 	"github.com/rawen554/shortener/internal/utils"
 )
 
-type GenericStore struct {
-	Get      func(id string) (string, error)
-	GetByURL func(url string) (string, error)
-	GetBatch func(urls []store.BatchReq) ([]store.BatchRes, error)
-	Put      func(id string, url string) error
-	PutBatch func(urls []store.BatchReq) error
+type Store interface {
+	Get(id string) (string, error)
+	Put(id string, shortURL string) (string, error)
+	PutBatch([]models.URLBatchReq) ([]models.URLBatchRes, error)
+	HealthCheck() error
 }
 
-type (
-	App struct {
-		config *config.ServerConfig
-		store  *GenericStore
-	}
+type App struct {
+	config *config.ServerConfig
+	store  Store
+}
 
-	ShortenReq struct {
-		URL string `json:"url"`
-	}
-
-	ShortenRes struct {
-		Result string `json:"result"`
-	}
-)
-
-func NewApp(config *config.ServerConfig, storage *GenericStore) *App {
+func NewApp(config *config.ServerConfig, store Store) *App {
 	return &App{
 		config: config,
-		store:  storage,
+		store:  store,
 	}
 }
 
@@ -72,23 +60,16 @@ func (a *App) ShortenBatch(c *gin.Context) {
 	req := c.Request
 	res := c.Writer
 
-	batch := make([]store.BatchReq, 0)
+	batch := make([]models.URLBatchReq, 0)
 	if err := json.NewDecoder(req.Body).Decode(&batch); err != nil {
 		log.Printf("Body cannot be decoded: %v", err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	err := a.store.PutBatch(batch)
+	result, err := a.store.PutBatch(batch)
 	if err != nil {
 		log.Printf("Cant put batch: %v", err)
-		res.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	result, err := a.store.GetBatch(batch)
-	if err != nil {
-		log.Printf("Cant get batch: %v", err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -105,7 +86,11 @@ func (a *App) ShortenBatch(c *gin.Context) {
 
 	res.WriteHeader(http.StatusCreated)
 	res.Header().Add("Content-Type", "application/json")
-	json.NewEncoder(res).Encode(result)
+	if err := json.NewEncoder(res).Encode(result); err != nil {
+		log.Printf("Error writing response in JSON: %v", err)
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 func (a *App) ShortenURL(c *gin.Context) {
@@ -116,7 +101,7 @@ func (a *App) ShortenURL(c *gin.Context) {
 
 	switch req.RequestURI {
 	case "/api/shorten":
-		var shorten ShortenReq
+		var shorten models.ShortenReq
 		if err := json.NewDecoder(req.Body).Decode(&shorten); err != nil {
 			log.Printf("Body cannot be decoded: %v", err)
 			res.WriteHeader(http.StatusInternalServerError)
@@ -140,18 +125,10 @@ func (a *App) ShortenURL(c *gin.Context) {
 		return
 	}
 
-	if err := a.store.Put(id, originalURL); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			if pgErr.Code == pgerrcode.UniqueViolation {
-				id, err = a.store.GetByURL(originalURL)
-				if err != nil {
-					log.Printf("Error retrieving data: %v", err)
-					res.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-				res.WriteHeader(http.StatusConflict)
-			}
+	id, err = a.store.Put(id, originalURL)
+	if err != nil {
+		if errors.Is(err, postgres.ErrDBInsertConflict) {
+			res.WriteHeader(http.StatusConflict)
 		} else {
 			log.Printf("Error saving data: %v", err)
 			res.WriteHeader(http.StatusInternalServerError)
@@ -170,7 +147,7 @@ func (a *App) ShortenURL(c *gin.Context) {
 
 	switch req.RequestURI {
 	case "/api/shorten":
-		respURL := ShortenRes{
+		respURL := models.ShortenRes{
 			Result: resultURL,
 		}
 		resp, err := json.Marshal(respURL)
@@ -193,12 +170,20 @@ func (a *App) ShortenURL(c *gin.Context) {
 }
 
 func (a *App) DBHealthCheck(c *gin.Context) {
-	db, err := sql.Open("pgx", a.config.DatabaseDSN)
-	if err != nil {
-		log.Printf("Error opening connection to DB: %v", err)
+	storeType := reflect.TypeOf(a.store)
+	postgresStoreType := reflect.TypeOf((*postgres.DBStore)(nil))
+
+	if storeType == postgresStoreType {
+		if err := a.store.HealthCheck(); err != nil {
+			log.Printf("Error opening connection to DB: %v", err)
+			c.Writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		c.Writer.WriteHeader(http.StatusOK)
+		return
+	} else {
+		log.Printf("DB is not connected")
 		c.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer db.Close()
-	c.Writer.WriteHeader(http.StatusOK)
 }
