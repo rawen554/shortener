@@ -22,7 +22,7 @@ func setupRouter(a *app.App) *gin.Engine {
 
 	r.GET("/:id", a.RedirectToOriginal)
 	r.POST("/", a.ShortenURL)
-	r.GET("/ping", a.DBHealthCheck)
+	r.GET("/ping", a.Ping)
 
 	api := r.Group("/api")
 	{

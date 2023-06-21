@@ -64,7 +64,7 @@ func (s *FSStorage) PutBatch(urls []models.URLBatchReq) ([]models.URLBatchRes, e
 	return result, nil
 }
 
-func (s *FSStorage) HealthCheck() error {
+func (s *FSStorage) Ping() error {
 	return nil
 }
 

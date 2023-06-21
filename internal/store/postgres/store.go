@@ -5,17 +5,18 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rawen554/shortener/internal/models"
 )
 
 type DBStore struct {
-	conn *pgx.Conn
+	conn *pgxpool.Pool
 }
 
 var ErrDBInsertConflict = errors.New("conflict insert into table, returned stored value")
 
 func NewPostgresStore(dsn string) (*DBStore, error) {
-	conn, err := pgx.Connect(context.Background(), dsn)
+	conn, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -28,12 +29,12 @@ func NewPostgresStore(dsn string) (*DBStore, error) {
 	return dbStore, nil
 }
 
-func (db *DBStore) HealthCheck() error {
+func (db *DBStore) Ping() error {
 	return db.conn.Ping(context.Background())
 }
 
 func (db *DBStore) Get(id string) (string, error) {
-	row := db.conn.QueryRow(context.Background(), "SELECT url FROM shortener WHERE id = $1", id)
+	row := db.conn.QueryRow(context.Background(), "SELECT original_url FROM shortener WHERE slug = $1", id)
 	var result string
 	err := row.Scan(&result)
 	if err != nil {
@@ -47,10 +48,10 @@ func (db *DBStore) Put(id string, url string) (string, error) {
 
 	row := db.conn.QueryRow(context.Background(), `
 		INSERT INTO shortener VALUES ($1, $2)
-		ON CONFLICT (url)
+		ON CONFLICT (original_url)
 		DO UPDATE SET
-			url=EXCLUDED.url
-		RETURNING id
+			original_url=EXCLUDED.original_url
+		RETURNING slug
 	`, id, url)
 	var result string
 	if err := row.Scan(&result); err != nil {
@@ -66,18 +67,18 @@ func (db *DBStore) Put(id string, url string) (string, error) {
 
 func (db *DBStore) PutBatch(urls []models.URLBatchReq) ([]models.URLBatchRes, error) {
 	query := `
-		INSERT INTO shortener VALUES (@id, @originalUrl)
-		ON CONFLICT (url)
+		INSERT INTO shortener VALUES (@slug, @originalUrl)
+		ON CONFLICT (original_url)
 		DO UPDATE SET
-			url=EXCLUDED.url
-		RETURNING id	
+			original_url=EXCLUDED.original_url
+		RETURNING slug	
 	`
 	result := make([]models.URLBatchRes, 0)
 
 	batch := &pgx.Batch{}
 	for _, url := range urls {
 		args := pgx.NamedArgs{
-			"id":          url.CorrelationID,
+			"slug":        url.CorrelationID,
 			"originalUrl": url.OriginalURL,
 		}
 		batch.Queue(query, args)
@@ -100,9 +101,10 @@ func (db *DBStore) PutBatch(urls []models.URLBatchReq) ([]models.URLBatchRes, er
 }
 
 func (db *DBStore) CreateTable() error {
-	_, err := db.conn.Exec(context.Background(), "CREATE TABLE IF NOT EXISTS shortener( "+
-		"id VARCHAR(255) NOT NULL, "+
-		"url VARCHAR(255) PRIMARY KEY "+
-		");")
+	_, err := db.conn.Exec(context.Background(), `CREATE TABLE IF NOT EXISTS shortener(
+		slug VARCHAR(255),
+		original_url VARCHAR(255) PRIMARY KEY,
+		UNIQUE(slug, original_url)
+	);`)
 	return err
 }

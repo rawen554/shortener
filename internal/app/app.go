@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"reflect"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -21,7 +20,7 @@ type Store interface {
 	Get(id string) (string, error)
 	Put(id string, shortURL string) (string, error)
 	PutBatch([]models.URLBatchReq) ([]models.URLBatchRes, error)
-	HealthCheck() error
+	Ping() error
 }
 
 type App struct {
@@ -169,21 +168,11 @@ func (a *App) ShortenURL(c *gin.Context) {
 	}
 }
 
-func (a *App) DBHealthCheck(c *gin.Context) {
-	storeType := reflect.TypeOf(a.store)
-	postgresStoreType := reflect.TypeOf((*postgres.DBStore)(nil))
-
-	if storeType == postgresStoreType {
-		if err := a.store.HealthCheck(); err != nil {
-			log.Printf("Error opening connection to DB: %v", err)
-			c.Writer.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		c.Writer.WriteHeader(http.StatusOK)
-		return
-	} else {
-		log.Printf("DB is not connected")
+func (a *App) Ping(c *gin.Context) {
+	if err := a.store.Ping(); err != nil {
+		log.Printf("Error opening connection to DB: %v", err)
 		c.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	c.Writer.WriteHeader(http.StatusOK)
 }

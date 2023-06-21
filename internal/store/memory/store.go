@@ -52,6 +52,6 @@ func (s *MemoryStorage) PutBatch(urls []models.URLBatchReq) ([]models.URLBatchRe
 	return result, nil
 }
 
-func (s *MemoryStorage) HealthCheck() error {
+func (s *MemoryStorage) Ping() error {
 	return nil
 }

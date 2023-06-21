@@ -12,7 +12,7 @@ type Store interface {
 	Get(id string) (string, error)
 	Put(id string, shortURL string) (string, error)
 	PutBatch([]models.URLBatchReq) ([]models.URLBatchRes, error)
-	HealthCheck() error
+	Ping() error
 }
 
 func NewStore(conf *config.ServerConfig) (Store, error) {
