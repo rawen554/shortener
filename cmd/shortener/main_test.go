@@ -11,7 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rawen554/shortener/internal/app"
 	"github.com/rawen554/shortener/internal/config"
-	"github.com/rawen554/shortener/internal/store"
+	"github.com/rawen554/shortener/internal/models"
+	"github.com/rawen554/shortener/internal/store/fs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,7 +57,7 @@ func Test_redirectToOriginal(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 
-			storage, err := store.NewStorage("./test.json")
+			storage, err := fs.NewFileStorage("./test.json")
 			if err != nil {
 				t.Errorf("failed to initialize a new storage: %v", err)
 				return
@@ -118,7 +119,7 @@ func Test_shortURL_V1(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 
-			storage, err := store.NewStorage("./test.json")
+			storage, err := fs.NewFileStorage("./test.json")
 			if err != nil {
 				t.Errorf("failed to initialize a new storage: %v", err)
 				return
@@ -178,7 +179,7 @@ func Test_shortURL_V2(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 
-			storage, err := store.NewStorage("./test.json")
+			storage, err := fs.NewFileStorage("./test.json")
 			if err != nil {
 				t.Errorf("failed to initialize a new storage: %v", err)
 				return
@@ -191,7 +192,7 @@ func Test_shortURL_V2(t *testing.T) {
 
 			testApp := app.NewApp(&config.ServerConfig{}, storage)
 			r := setupRouter(testApp)
-			reqObj := app.ShortenReq{
+			reqObj := models.ShortenReq{
 				URL: tt.args.originalURL,
 			}
 			obj, err := json.Marshal(reqObj)
