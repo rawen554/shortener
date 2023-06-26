@@ -20,7 +20,7 @@ func NewMemoryStorage(records map[string]string) (*MemoryStorage, error) {
 	}, nil
 }
 
-func (s *MemoryStorage) Put(id string, url string) (string, error) {
+func (s *MemoryStorage) Put(id string, url string, userID string) (string, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	s.urls[id] = url
@@ -35,11 +35,15 @@ func (s *MemoryStorage) Get(id string) (string, error) {
 	return originalURL, nil
 }
 
-func (s *MemoryStorage) PutBatch(urls []models.URLBatchReq) ([]models.URLBatchRes, error) {
+func (s *MemoryStorage) GetAllByUserID(userID string) ([]models.URLRecord, error) {
+	return nil, nil
+}
+
+func (s *MemoryStorage) PutBatch(urls []models.URLBatchReq, userID string) ([]models.URLBatchRes, error) {
 	result := make([]models.URLBatchRes, 0)
 
 	for _, url := range urls {
-		id, err := s.Put(url.CorrelationID, url.OriginalURL)
+		id, err := s.Put(url.CorrelationID, url.OriginalURL, userID)
 		if err != nil {
 			return nil, err
 		}

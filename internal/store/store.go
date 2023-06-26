@@ -10,8 +10,9 @@ import (
 
 type Store interface {
 	Get(id string) (string, error)
-	Put(id string, shortURL string) (string, error)
-	PutBatch([]models.URLBatchReq) ([]models.URLBatchRes, error)
+	GetAllByUserID(userID string) ([]models.URLRecord, error)
+	Put(id string, shortURL string, userID string) (string, error)
+	PutBatch(data []models.URLBatchReq, userID string) ([]models.URLBatchRes, error)
 	Ping() error
 }
 

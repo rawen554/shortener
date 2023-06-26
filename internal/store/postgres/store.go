@@ -43,16 +43,41 @@ func (db *DBStore) Get(id string) (string, error) {
 	return result, nil
 }
 
-func (db *DBStore) Put(id string, url string) (string, error) {
+func (db *DBStore) GetAllByUserID(userID string) ([]models.URLRecord, error) {
+	result := make([]models.URLRecord, 0)
+
+	rows, err := db.conn.Query(context.Background(), `
+		SELECT slug, original_url
+		FROM shortener
+		WHERE user_id = $1
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		record := models.URLRecord{}
+		if err := rows.Scan(&record.ShortURL, &record.OriginalURL); err != nil {
+			return nil, err
+		}
+
+		result = append(result, record)
+	}
+
+	return result, nil
+}
+
+func (db *DBStore) Put(id string, url string, userID string) (string, error) {
 	var err error
 
 	row := db.conn.QueryRow(context.Background(), `
-		INSERT INTO shortener VALUES ($1, $2)
+		INSERT INTO shortener VALUES ($1, $2, $3)
 		ON CONFLICT (original_url)
 		DO UPDATE SET
 			original_url=EXCLUDED.original_url
 		RETURNING slug
-	`, id, url)
+	`, id, url, userID)
 	var result string
 	if err := row.Scan(&result); err != nil {
 		return "", err
@@ -65,9 +90,9 @@ func (db *DBStore) Put(id string, url string) (string, error) {
 	return result, err
 }
 
-func (db *DBStore) PutBatch(urls []models.URLBatchReq) ([]models.URLBatchRes, error) {
+func (db *DBStore) PutBatch(urls []models.URLBatchReq, userID string) ([]models.URLBatchRes, error) {
 	query := `
-		INSERT INTO shortener VALUES (@slug, @originalUrl)
+		INSERT INTO shortener VALUES (@slug, @originalUrl, @userID)
 		ON CONFLICT (original_url)
 		DO UPDATE SET
 			original_url=EXCLUDED.original_url
@@ -80,6 +105,7 @@ func (db *DBStore) PutBatch(urls []models.URLBatchReq) ([]models.URLBatchRes, er
 		args := pgx.NamedArgs{
 			"slug":        url.CorrelationID,
 			"originalUrl": url.OriginalURL,
+			"userID":      userID,
 		}
 		batch.Queue(query, args)
 	}
@@ -104,6 +130,7 @@ func (db *DBStore) CreateTable() error {
 	_, err := db.conn.Exec(context.Background(), `CREATE TABLE IF NOT EXISTS shortener(
 		slug VARCHAR(255),
 		original_url VARCHAR(255) PRIMARY KEY,
+		user_id VARCHAR(255),
 		UNIQUE(slug, original_url)
 	);`)
 	return err
