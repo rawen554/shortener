@@ -19,6 +19,8 @@ type URLBatchRes struct {
 	ShortURL      string `json:"short_url"`
 }
 
+type DeleteUserURLsReq []string
+
 type ShortenReq struct {
 	URL string `json:"url"`
 }

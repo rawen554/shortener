@@ -32,6 +32,7 @@ func setupRouter(a *app.App) *gin.Engine {
 		api.POST("/shorten/batch", a.ShortenBatch)
 
 		api.GET("/user/urls", a.GetUserRecors)
+		api.DELETE("/user/urls", a.DeleteUserRecords)
 	}
 
 	return r

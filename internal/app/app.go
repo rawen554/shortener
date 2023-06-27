@@ -1,6 +1,8 @@
 package app
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -14,12 +16,12 @@ import (
 	"github.com/rawen554/shortener/internal/config"
 	"github.com/rawen554/shortener/internal/models"
 	"github.com/rawen554/shortener/internal/store/postgres"
-	"github.com/rawen554/shortener/internal/utils"
 )
 
 type Store interface {
 	Get(id string) (string, error)
 	GetAllByUserID(userID string) ([]models.URLRecord, error)
+	DeleteMany(ids models.DeleteUserURLsReq, userID string) error
 	Put(id string, shortURL string, userID string) (string, error)
 	PutBatch(data []models.URLBatchReq, userID string) ([]models.URLBatchRes, error)
 	Ping() error
@@ -35,6 +37,28 @@ func NewApp(config *config.ServerConfig, store Store) *App {
 		config: config,
 		store:  store,
 	}
+}
+
+func (a *App) DeleteUserRecords(c *gin.Context) {
+	req := c.Request
+	res := c.Writer
+	userID := c.GetString(auth.UserIDKey)
+
+	batch := make(models.DeleteUserURLsReq, 0)
+	if err := json.NewDecoder(req.Body).Decode(&batch); err != nil {
+		log.Printf("Body cannot be decoded: %v", err)
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	go func() {
+		err := a.store.DeleteMany(batch, userID)
+		if err != nil {
+			log.Printf("error deleting: %v", err)
+		}
+	}()
+
+	res.WriteHeader(http.StatusAccepted)
 }
 
 func (a *App) GetUserRecors(c *gin.Context) {
@@ -78,9 +102,14 @@ func (a *App) RedirectToOriginal(c *gin.Context) {
 
 	originalURL, err := a.store.Get(id)
 	if err != nil {
-		log.Printf("Error getting original URL: %v", err)
-		res.WriteHeader(http.StatusInternalServerError)
-		return
+		if errors.Is(err, postgres.ErrURLDeleted) {
+			res.WriteHeader(http.StatusGone)
+			return
+		} else {
+			log.Printf("Error getting original URL: %v", err)
+			res.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
 	if originalURL == "" {
@@ -156,12 +185,14 @@ func (a *App) ShortenURL(c *gin.Context) {
 		originalURL = string(body)
 	}
 
-	id, err := utils.GenerateRandomString(8)
+	b := make([]byte, 4)
+	_, err := rand.Read(b)
 	if err != nil {
 		log.Printf("Random string generator error: %v", err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	id := hex.EncodeToString(b)
 
 	id, err = a.store.Put(id, originalURL, userID)
 	if err != nil {

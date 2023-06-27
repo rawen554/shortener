@@ -11,6 +11,7 @@ import (
 type Store interface {
 	Get(id string) (string, error)
 	GetAllByUserID(userID string) ([]models.URLRecord, error)
+	DeleteMany(ids models.DeleteUserURLsReq, userID string) error
 	Put(id string, shortURL string, userID string) (string, error)
 	PutBatch(data []models.URLBatchReq, userID string) ([]models.URLBatchRes, error)
 	Ping() error

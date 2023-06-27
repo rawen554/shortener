@@ -39,6 +39,10 @@ func (s *MemoryStorage) GetAllByUserID(userID string) ([]models.URLRecord, error
 	return nil, nil
 }
 
+func (s *MemoryStorage) DeleteMany(ids models.DeleteUserURLsReq, userID string) error {
+	return nil
+}
+
 func (s *MemoryStorage) PutBatch(urls []models.URLBatchReq, userID string) ([]models.URLBatchRes, error) {
 	result := make([]models.URLBatchRes, 0)
 
