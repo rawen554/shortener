@@ -28,8 +28,7 @@ func main() {
 	data.Set("url", long)
 	// добавляем HTTP-клиент
 	client := &http.Client{}
-	// пишем запрос
-	// запрос методом POST должен, помимо заголовков, содержать тело
+	// запрос методом POST должен, помимо заголовков, содержать body
 	// тело должно быть источником потокового чтения io.Reader
 	request, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(data.Encode()))
 	if err != nil {
@@ -44,7 +43,12 @@ func main() {
 	}
 	// выводим код ответа
 	fmt.Println("Статус-код ", response.Status)
-	defer response.Body.Close()
+	defer func() {
+		err := response.Body.Close()
+		if err != nil {
+			panic(err)
+		}
+	}()
 	// читаем поток из тела ответа
 	body, err := io.ReadAll(response.Body)
 	if err != nil {

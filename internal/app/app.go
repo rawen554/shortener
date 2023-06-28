@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -16,6 +17,18 @@ import (
 	"github.com/rawen554/shortener/internal/config"
 	"github.com/rawen554/shortener/internal/models"
 	"github.com/rawen554/shortener/internal/store/postgres"
+)
+
+var ErrDecodeBody = errors.New("body cannot be decoded")
+var ErrJoinURL = errors.New("URL cannot be joined")
+var ErrWriteBody = errors.New("error writing body")
+
+const (
+	contentType     = "Content-Type"
+	applicationJSON = "application/json"
+	apiShorten      = "/api/shorten"
+	root            = "/"
+	randBytesSize   = 4
 )
 
 type Store interface {
@@ -46,7 +59,7 @@ func (a *App) DeleteUserRecords(c *gin.Context) {
 
 	batch := make(models.DeleteUserURLsReq, 0)
 	if err := json.NewDecoder(req.Body).Decode(&batch); err != nil {
-		log.Printf("Body cannot be decoded: %v", err)
+		fmt.Errorf("body cannot be decoded: %v", err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -80,14 +93,14 @@ func (a *App) GetUserRecors(c *gin.Context) {
 	for idx, urlObj := range records {
 		resultURL, err := url.JoinPath(a.config.RedirectBaseURL, urlObj.ShortURL)
 		if err != nil {
-			log.Printf("URL cannot be joined: %v", err)
+			log.Printf("%v: %v", ErrJoinURL, err)
 			res.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		records[idx].ShortURL = resultURL
 	}
 
-	res.Header().Add("Content-Type", "application/json")
+	res.Header().Add(contentType, applicationJSON)
 	res.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(res).Encode(records); err != nil {
 		log.Printf("Error writing response in JSON: %v", err)
@@ -143,7 +156,7 @@ func (a *App) ShortenBatch(c *gin.Context) {
 	for idx, urlObj := range result {
 		resultURL, err := url.JoinPath(a.config.RedirectBaseURL, urlObj.CorrelationID)
 		if err != nil {
-			log.Printf("URL cannot be joined: %v", err)
+			log.Printf("%v: %v", ErrJoinURL, err)
 			res.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -151,7 +164,7 @@ func (a *App) ShortenBatch(c *gin.Context) {
 	}
 
 	res.WriteHeader(http.StatusCreated)
-	res.Header().Add("Content-Type", "application/json")
+	res.Header().Add(contentType, applicationJSON)
 	if err := json.NewEncoder(res).Encode(result); err != nil {
 		log.Printf("Error writing response in JSON: %v", err)
 		res.WriteHeader(http.StatusInternalServerError)
@@ -167,7 +180,7 @@ func (a *App) ShortenURL(c *gin.Context) {
 	var originalURL string
 
 	switch req.RequestURI {
-	case "/api/shorten":
+	case apiShorten:
 		var shorten models.ShortenReq
 		if err := json.NewDecoder(req.Body).Decode(&shorten); err != nil {
 			log.Printf("Body cannot be decoded: %v", err)
@@ -175,7 +188,7 @@ func (a *App) ShortenURL(c *gin.Context) {
 			return
 		}
 		originalURL = shorten.URL
-	case "/":
+	case root:
 		body, err := io.ReadAll(req.Body)
 		if err != nil {
 			log.Printf("Body cannot be read: %v", err)
@@ -185,7 +198,7 @@ func (a *App) ShortenURL(c *gin.Context) {
 		originalURL = string(body)
 	}
 
-	b := make([]byte, 4)
+	b := make([]byte, randBytesSize)
 	_, err := rand.Read(b)
 	if err != nil {
 		log.Printf("Random string generator error: %v", err)
@@ -209,13 +222,13 @@ func (a *App) ShortenURL(c *gin.Context) {
 
 	resultURL, err := url.JoinPath(a.config.RedirectBaseURL, id)
 	if err != nil {
-		log.Printf("URL cannot be joined: %v", err)
+		log.Printf("%v: %v", ErrJoinURL, err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	switch req.RequestURI {
-	case "/api/shorten":
+	case apiShorten:
 		respURL := models.ShortenRes{
 			Result: resultURL,
 		}
@@ -225,11 +238,15 @@ func (a *App) ShortenURL(c *gin.Context) {
 			res.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		res.Header().Set("Content-Type", "application/json")
-		res.Write(resp)
+		res.Header().Set(contentType, applicationJSON)
+		if _, err := res.Write(resp); err != nil {
+			log.Printf("%v: %v", ErrWriteBody, err)
+			res.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 
-	case "/":
-		res.Header().Set("Content-Type", "text/plain")
+	case root:
+		res.Header().Set(contentType, "text/plain")
 		if _, err := res.Write([]byte(resultURL)); err != nil {
 			log.Printf("Error writing body: %v", err)
 			res.WriteHeader(http.StatusInternalServerError)

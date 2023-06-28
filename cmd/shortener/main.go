@@ -22,8 +22,10 @@ func setupRouter(a *app.App) *gin.Engine {
 	r.Use(ginLoggerMiddleware)
 	r.Use(auth.AuthMiddleware())
 
+	const rootPath = "/"
+
 	r.GET("/:id", a.RedirectToOriginal)
-	r.POST("/", a.ShortenURL)
+	r.POST(rootPath, a.ShortenURL)
 	r.GET("/ping", a.Ping)
 
 	api := r.Group("/api")
@@ -31,8 +33,11 @@ func setupRouter(a *app.App) *gin.Engine {
 		api.POST("/shorten", a.ShortenURL)
 		api.POST("/shorten/batch", a.ShortenBatch)
 
-		api.GET("/user/urls", a.GetUserRecors)
-		api.DELETE("/user/urls", a.DeleteUserRecords)
+		userUrls := api.Group("/user/urls")
+		{
+			userUrls.GET(rootPath, a.GetUserRecors)
+			userUrls.DELETE(rootPath, a.DeleteUserRecords)
+		}
 	}
 
 	return r
