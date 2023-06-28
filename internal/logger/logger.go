@@ -36,7 +36,7 @@ func Logger() (gin.HandlerFunc, error) {
 			"Duration", duration,
 			"Status", c.Writer.Status(),
 			"Size", c.Writer.Size(),
-			"Data", string(body),
 		)
+		sugar.Debugln("Data", string(body))
 	}, nil
 }

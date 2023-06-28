@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rawen554/shortener/internal/app"
+	"github.com/rawen554/shortener/internal/auth"
 	"github.com/rawen554/shortener/internal/compress"
 	"github.com/rawen554/shortener/internal/config"
 	ginLogger "github.com/rawen554/shortener/internal/logger"
@@ -17,17 +18,26 @@ func setupRouter(a *app.App) *gin.Engine {
 	if err != nil {
 		log.Fatal(err)
 	}
-	r.Use(ginLoggerMiddleware)
 	r.Use(compress.Compress())
+	r.Use(ginLoggerMiddleware)
+	r.Use(auth.AuthMiddleware())
+
+	const rootPath = "/"
 
 	r.GET("/:id", a.RedirectToOriginal)
-	r.POST("/", a.ShortenURL)
+	r.POST(rootPath, a.ShortenURL)
 	r.GET("/ping", a.Ping)
 
 	api := r.Group("/api")
 	{
 		api.POST("/shorten", a.ShortenURL)
 		api.POST("/shorten/batch", a.ShortenBatch)
+
+		userUrls := api.Group("/user/urls")
+		{
+			userUrls.GET(rootPath, a.GetUserRecors)
+			userUrls.DELETE(rootPath, a.DeleteUserRecords)
+		}
 	}
 
 	return r
