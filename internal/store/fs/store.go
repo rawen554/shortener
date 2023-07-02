@@ -68,6 +68,10 @@ func (s *FSStorage) Ping() error {
 	return nil
 }
 
+func (s *FSStorage) Close() {
+	s.sw.file.Close()
+}
+
 func (s *FSStorage) DeleteStorageFile() error {
 	return os.Remove(s.path)
 }
@@ -89,8 +93,8 @@ func NewStorageReader(filename string) (*StorageReader, error) {
 	}, nil
 }
 
-func (sr *StorageReader) ReadFromFile() (map[string]string, error) {
-	records := make(map[string]string)
+func (sr *StorageReader) ReadFromFile() (map[string]models.URLRecordMemory, error) {
+	records := make(map[string]models.URLRecordMemory)
 	for {
 		r, err := sr.ReadLine()
 		if errors.Is(err, io.EOF) {
@@ -98,7 +102,7 @@ func (sr *StorageReader) ReadFromFile() (map[string]string, error) {
 		} else if err != nil {
 			return nil, err
 		}
-		records[r.ShortURL] = r.OriginalURL
+		records[r.ShortURL] = models.URLRecordMemory{OriginalURL: r.OriginalURL, UserID: r.UserID}
 	}
 
 	return records, nil
@@ -136,10 +140,10 @@ func (sw *StorageWriter) AppendToFile(r *models.URLRecordFS) error {
 
 func (s *FSStorage) Put(id string, url string, userID string) (string, error) {
 	id, err := s.MemoryStorage.Put(id, url, userID)
-	if (err) != nil {
+	if err != nil {
 		return "", err
 	}
-	return id, s.sw.AppendToFile(&models.URLRecordFS{UUID: strconv.Itoa(s.UrlsCount), URLRecord: models.URLRecord{
+	return id, s.sw.AppendToFile(&models.URLRecordFS{UUID: strconv.Itoa(s.UrlsCount), UserID: userID, URLRecord: models.URLRecord{
 		OriginalURL: url, ShortURL: id,
 	}})
 }

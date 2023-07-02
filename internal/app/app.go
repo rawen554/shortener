@@ -28,13 +28,13 @@ type Store interface {
 }
 
 type App struct {
-	config *config.ServerConfig
+	Config *config.ServerConfig
 	store  Store
 }
 
 func NewApp(config *config.ServerConfig, store Store) *App {
 	return &App{
-		config: config,
+		Config: config,
 		store:  store,
 	}
 }
@@ -61,7 +61,7 @@ func (a *App) DeleteUserRecords(c *gin.Context) {
 	res.WriteHeader(http.StatusAccepted)
 }
 
-func (a *App) GetUserRecors(c *gin.Context) {
+func (a *App) GetUserRecords(c *gin.Context) {
 	res := c.Writer
 	userID := c.GetString(auth.UserIDKey)
 
@@ -78,7 +78,7 @@ func (a *App) GetUserRecors(c *gin.Context) {
 	}
 
 	for idx, urlObj := range records {
-		resultURL, err := url.JoinPath(a.config.RedirectBaseURL, urlObj.ShortURL)
+		resultURL, err := url.JoinPath(a.Config.RedirectBaseURL, urlObj.ShortURL)
 		if err != nil {
 			log.Printf("URL cannot be joined: %v", err)
 			res.WriteHeader(http.StatusInternalServerError)
@@ -141,7 +141,7 @@ func (a *App) ShortenBatch(c *gin.Context) {
 	}
 
 	for idx, urlObj := range result {
-		resultURL, err := url.JoinPath(a.config.RedirectBaseURL, urlObj.CorrelationID)
+		resultURL, err := url.JoinPath(a.Config.RedirectBaseURL, urlObj.CorrelationID)
 		if err != nil {
 			log.Printf("URL cannot be joined: %v", err)
 			res.WriteHeader(http.StatusInternalServerError)
@@ -207,7 +207,7 @@ func (a *App) ShortenURL(c *gin.Context) {
 		res.WriteHeader(http.StatusCreated)
 	}
 
-	resultURL, err := url.JoinPath(a.config.RedirectBaseURL, id)
+	resultURL, err := url.JoinPath(a.Config.RedirectBaseURL, id)
 	if err != nil {
 		log.Printf("URL cannot be joined: %v", err)
 		res.WriteHeader(http.StatusInternalServerError)

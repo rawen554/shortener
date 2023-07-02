@@ -16,23 +16,22 @@ type Claims struct {
 	UserID string
 }
 
-const TokenExp = time.Hour * 3
-const SecretKey = "b4952c3809196592c026529df00774e46bfb5be0"
-const CookieName = "jwt-token"
+const tokenExp = time.Hour * 3
+const cookieName = "jwt-token"
 const UserIDKey = "userID"
 
 var ErrTokenNotValid = errors.New("token is not valid")
 var ErrNoUserInToken = errors.New("no user data in token")
 
-func BuildJWTString() (string, error) {
+func BuildJWTString(seed string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(TokenExp)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenExp)),
 		},
 		UserID: uuid.New().String(),
 	})
 
-	tokenString, err := token.SignedString([]byte(SecretKey))
+	tokenString, err := token.SignedString([]byte(seed))
 	if err != nil {
 		return "", err
 	}
@@ -41,11 +40,11 @@ func BuildJWTString() (string, error) {
 	return tokenString, nil
 }
 
-func GetUserID(tokenString string) (string, error) {
+func GetUserID(tokenString string, seed string) (string, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims,
 		func(t *jwt.Token) (interface{}, error) {
-			return []byte(SecretKey), nil
+			return []byte(seed), nil
 		})
 	if err != nil {
 		if !token.Valid {
@@ -62,46 +61,46 @@ func GetUserID(tokenString string) (string, error) {
 	return claims.UserID, nil
 }
 
-func AuthMiddleware() gin.HandlerFunc {
+func AuthMiddleware(seed string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		cookie, err := c.Cookie(CookieName)
+		cookie, err := c.Cookie(cookieName)
 		if err != nil {
 			if errors.Is(err, http.ErrNoCookie) {
-				token, err := BuildJWTString()
+				token, err := BuildJWTString(seed)
 				if err != nil {
 					log.Printf("Error building JWT string: %v", err)
 					c.Writer.WriteHeader(http.StatusInternalServerError)
 					return
 				}
-				c.SetCookie(CookieName, token, 3600*24*30, "", "", false, true)
+				c.SetCookie(cookieName, token, 3600*24*30, "", "", false, true)
 				cookie = token
 			} else {
-				log.Printf("Error reading cookie[%v]: %v", CookieName, err)
+				log.Printf("Error reading cookie[%v]: %v", cookieName, err)
 				c.Writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 		}
 
-		userID, err := GetUserID(cookie)
+		userID, err := GetUserID(cookie, seed)
 		if err != nil {
 			if errors.Is(err, ErrNoUserInToken) {
 				c.Writer.WriteHeader(http.StatusUnauthorized)
 				return
 			}
 			if errors.Is(err, ErrTokenNotValid) {
-				token, err := BuildJWTString()
+				token, err := BuildJWTString(seed)
 				if err != nil {
 					log.Printf("Error building JWT string: %v", err)
 					c.Writer.WriteHeader(http.StatusInternalServerError)
 					return
 				}
-				userID, err = GetUserID(token)
+				userID, err = GetUserID(token, seed)
 				if err != nil {
 					log.Printf("Revalidate error user id from renewed token: %v", err)
 					c.Writer.WriteHeader(http.StatusInternalServerError)
 					return
 				}
-				c.SetCookie(CookieName, token, 3600*24*30, "", "", false, true)
+				c.SetCookie(cookieName, token, 3600*24*30, "", "", false, true)
 			}
 		}
 

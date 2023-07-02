@@ -2,7 +2,13 @@ package models
 
 type URLRecordFS struct {
 	URLRecord
-	UUID string `json:"uuid"`
+	UUID   string `json:"uuid"`
+	UserID string `json:"user_id"`
+}
+
+type URLRecordMemory struct {
+	OriginalURL string
+	UserID      string
 }
 
 type URLRecord struct {
