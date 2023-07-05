@@ -1,7 +1,17 @@
 package models
 
+type URLRecordFS struct {
+	URLRecord
+	UUID   string `json:"uuid"`
+	UserID string `json:"user_id"`
+}
+
+type URLRecordMemory struct {
+	OriginalURL string
+	UserID      string
+}
+
 type URLRecord struct {
-	UUID        string `json:"uuid"`
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
 }
@@ -14,6 +24,8 @@ type URLBatchRes struct {
 	CorrelationID string `json:"correlation_id"`
 	ShortURL      string `json:"short_url"`
 }
+
+type DeleteUserURLsReq []string
 
 type ShortenReq struct {
 	URL string `json:"url"`
