@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
+
 	"github.com/rawen554/shortener/internal/app"
 	"github.com/rawen554/shortener/internal/auth"
 	"github.com/rawen554/shortener/internal/compress"
