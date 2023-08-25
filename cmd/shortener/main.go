@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 	"github.com/rawen554/shortener/internal/app"
 	"github.com/rawen554/shortener/internal/auth"
@@ -27,6 +28,7 @@ const (
 
 func setupRouter(a *app.App) *gin.Engine {
 	r := gin.New()
+	pprof.Register(r)
 	ginLoggerMiddleware, err := ginLogger.Logger()
 	if err != nil {
 		log.Fatal(err)
