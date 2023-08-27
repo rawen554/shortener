@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bytes"
@@ -10,14 +10,23 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rawen554/shortener/internal/app"
+	"github.com/golang/mock/gomock"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/rawen554/shortener/internal/config"
+	"github.com/rawen554/shortener/internal/middleware/auth"
 	"github.com/rawen554/shortener/internal/models"
 	"github.com/rawen554/shortener/internal/store/fs"
+	"github.com/rawen554/shortener/internal/store/mocks"
 	"github.com/rawen554/shortener/internal/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
+
+var testConfig = &config.ServerConfig{
+	RunAddr: ":8080",
+	Secret:  "b4952c3809196592c026529df00774e46bfb5be0",
+}
 
 func Test_redirectToOriginal(t *testing.T) {
 	type args struct {
@@ -70,8 +79,11 @@ func Test_redirectToOriginal(t *testing.T) {
 				storage.Put(url, tt.args.urls[url], "")
 			}
 
-			testApp := app.NewApp(&config.ServerConfig{}, storage)
-			r := setupRouter(testApp)
+			testApp := NewApp(testConfig, storage, zap.L().Sugar())
+			r, err := testApp.SetupRouter()
+			if err != nil {
+				t.Errorf("failed to setup router: %v", err)
+			}
 			req := httptest.NewRequest(http.MethodGet, tt.args.shortURL, nil)
 
 			r.ServeHTTP(w, req)
@@ -132,8 +144,11 @@ func Test_shortURL_V1(t *testing.T) {
 				storage.Put(url, tt.args.urls[url], "")
 			}
 
-			testApp := app.NewApp(&config.ServerConfig{}, storage)
-			r := setupRouter(testApp)
+			testApp := NewApp(testConfig, storage, zap.L().Sugar())
+			r, err := testApp.SetupRouter()
+			if err != nil {
+				t.Errorf("failed to setup router: %v", err)
+			}
 			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer([]byte(tt.args.originalURL)))
 			req.Header.Add("Content-Type", "text/plain")
 
@@ -192,8 +207,11 @@ func Test_shortURL_V2(t *testing.T) {
 				storage.Put(url, tt.args.urls[url], "")
 			}
 
-			testApp := app.NewApp(&config.ServerConfig{}, storage)
-			r := setupRouter(testApp)
+			testApp := NewApp(testConfig, storage, zap.L().Sugar())
+			r, err := testApp.SetupRouter()
+			if err != nil {
+				t.Errorf("failed to setup router: %v", err)
+			}
 			reqObj := models.ShortenReq{
 				URL: tt.args.originalURL,
 			}
@@ -226,8 +244,11 @@ func BenchmarkShortUrl(b *testing.B) {
 	}
 	defer storage.DeleteStorageFile()
 
-	testApp := app.NewApp(&config.ServerConfig{}, storage)
-	r := setupRouter(testApp)
+	testApp := NewApp(testConfig, storage, zap.L().Sugar())
+	r, err := testApp.SetupRouter()
+	if err != nil {
+		b.Errorf("failed to setup router: %v", err)
+	}
 
 	b.ResetTimer()
 
@@ -247,5 +268,70 @@ func BenchmarkShortUrl(b *testing.B) {
 		r.ServeHTTP(w, req)
 
 		w.Result()
+	}
+}
+
+func TestApp_DeleteUserRecords(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	c.Params = []gin.Param{{Key: auth.UserIDKey, Value: "1"}}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockStore(ctrl)
+
+	gomock.InOrder(
+		store.EXPECT().DeleteMany(gomock.Any(), "1").Return(nil),
+	)
+
+	app := NewApp(testConfig, store, zap.L().Sugar())
+	r, err := app.SetupRouter()
+	if err != nil {
+		t.Error(err)
+	}
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	type fields struct {
+		config *config.ServerConfig
+		store  Store
+		logger *zap.SugaredLogger
+	}
+	type args struct {
+		c *gin.Context
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+	}{
+		{
+			name: "test of the test",
+			fields: fields{
+				config: testConfig,
+				store:  store,
+				logger: zap.L().Sugar(),
+			},
+			args: args{
+				c: c,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &App{
+				config: tt.fields.config,
+				store:  tt.fields.store,
+				logger: tt.fields.logger,
+			}
+
+			tt.args.c.Request = httptest.NewRequest(http.MethodDelete, "/user/urls", bytes.NewBuffer([]byte("[\"1\",\"2\"]")))
+
+			a.DeleteUserRecords(tt.args.c)
+		})
 	}
 }

@@ -12,10 +12,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/rawen554/shortener/internal/auth"
 	"github.com/rawen554/shortener/internal/config"
+	"github.com/rawen554/shortener/internal/middleware/auth"
 	"github.com/rawen554/shortener/internal/models"
 	"github.com/rawen554/shortener/internal/store/postgres"
+	"go.uber.org/zap"
 )
 
 type Store interface {
@@ -28,14 +29,16 @@ type Store interface {
 }
 
 type App struct {
-	Config *config.ServerConfig
+	config *config.ServerConfig
 	store  Store
+	logger *zap.SugaredLogger
 }
 
-func NewApp(config *config.ServerConfig, store Store) *App {
+func NewApp(config *config.ServerConfig, store Store, logger *zap.SugaredLogger) *App {
 	return &App{
-		Config: config,
+		config: config,
 		store:  store,
+		logger: logger,
 	}
 }
 
@@ -78,7 +81,7 @@ func (a *App) GetUserRecords(c *gin.Context) {
 	}
 
 	for idx, urlObj := range records {
-		resultURL, err := url.JoinPath(a.Config.RedirectBaseURL, urlObj.ShortURL)
+		resultURL, err := url.JoinPath(a.config.RedirectBaseURL, urlObj.ShortURL)
 		if err != nil {
 			log.Printf("URL cannot be joined: %v", err)
 			res.WriteHeader(http.StatusInternalServerError)
@@ -141,7 +144,7 @@ func (a *App) ShortenBatch(c *gin.Context) {
 	}
 
 	for idx, urlObj := range result {
-		resultURL, err := url.JoinPath(a.Config.RedirectBaseURL, urlObj.CorrelationID)
+		resultURL, err := url.JoinPath(a.config.RedirectBaseURL, urlObj.CorrelationID)
 		if err != nil {
 			log.Printf("URL cannot be joined: %v", err)
 			res.WriteHeader(http.StatusInternalServerError)
@@ -207,7 +210,7 @@ func (a *App) ShortenURL(c *gin.Context) {
 		res.WriteHeader(http.StatusCreated)
 	}
 
-	resultURL, err := url.JoinPath(a.Config.RedirectBaseURL, id)
+	resultURL, err := url.JoinPath(a.config.RedirectBaseURL, id)
 	if err != nil {
 		log.Printf("URL cannot be joined: %v", err)
 		res.WriteHeader(http.StatusInternalServerError)

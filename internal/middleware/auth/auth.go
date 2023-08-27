@@ -23,7 +23,7 @@ const UserIDKey = "userID"
 var ErrTokenNotValid = errors.New("token is not valid")
 var ErrNoUserInToken = errors.New("no user data in token")
 
-func BuildJWTString(seed string) (string, error) {
+func BuildJWTString(secret string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenExp)),
@@ -31,7 +31,7 @@ func BuildJWTString(seed string) (string, error) {
 		UserID: uuid.New().String(),
 	})
 
-	tokenString, err := token.SignedString([]byte(seed))
+	tokenString, err := token.SignedString([]byte(secret))
 	if err != nil {
 		return "", err
 	}
@@ -40,11 +40,11 @@ func BuildJWTString(seed string) (string, error) {
 	return tokenString, nil
 }
 
-func GetUserID(tokenString string, seed string) (string, error) {
+func GetUserID(tokenString string, secret string) (string, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims,
 		func(t *jwt.Token) (interface{}, error) {
-			return []byte(seed), nil
+			return []byte(secret), nil
 		})
 	if err != nil {
 		if !token.Valid {
@@ -61,12 +61,12 @@ func GetUserID(tokenString string, seed string) (string, error) {
 	return claims.UserID, nil
 }
 
-func AuthMiddleware(seed string) gin.HandlerFunc {
+func AuthMiddleware(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		cookie, err := c.Cookie(cookieName)
 		if err != nil {
 			if errors.Is(err, http.ErrNoCookie) {
-				token, err := BuildJWTString(seed)
+				token, err := BuildJWTString(secret)
 				if err != nil {
 					log.Printf("Error building JWT string: %v", err)
 					c.Writer.WriteHeader(http.StatusInternalServerError)
@@ -81,20 +81,20 @@ func AuthMiddleware(seed string) gin.HandlerFunc {
 			}
 		}
 
-		userID, err := GetUserID(cookie, seed)
+		userID, err := GetUserID(cookie, secret)
 		if err != nil {
 			if errors.Is(err, ErrNoUserInToken) {
 				c.Writer.WriteHeader(http.StatusUnauthorized)
 				return
 			}
 			if errors.Is(err, ErrTokenNotValid) {
-				token, err := BuildJWTString(seed)
+				token, err := BuildJWTString(secret)
 				if err != nil {
 					log.Printf("Error building JWT string: %v", err)
 					c.Writer.WriteHeader(http.StatusInternalServerError)
 					return
 				}
-				userID, err = GetUserID(token, seed)
+				userID, err = GetUserID(token, secret)
 				if err != nil {
 					log.Printf("Revalidate error user id from renewed token: %v", err)
 					c.Writer.WriteHeader(http.StatusInternalServerError)

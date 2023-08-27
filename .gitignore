@@ -32,3 +32,4 @@ db/data
 # Other
 short-url-db.json
 golangci-lint
+profile.cov
