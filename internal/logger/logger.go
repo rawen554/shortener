@@ -9,10 +9,8 @@ import (
 func NewLogger() (*zap.SugaredLogger, error) {
 	logger, err := zap.NewDevelopment()
 	if err != nil {
-		return nil, fmt.Errorf("cant create new zap instance: %w", err)
+		return nil, fmt.Errorf("error creating logger: %w", err)
 	}
-	defer logger.Sync()
-	sugar := logger.Sugar()
 
-	return sugar, nil
+	return logger.Sugar(), nil
 }

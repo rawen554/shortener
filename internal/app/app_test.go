@@ -7,13 +7,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang/mock/gomock"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/rawen554/shortener/internal/config"
-	"github.com/rawen554/shortener/internal/middleware/auth"
 	"github.com/rawen554/shortener/internal/models"
 	"github.com/rawen554/shortener/internal/store/fs"
 	"github.com/rawen554/shortener/internal/store/mocks"
@@ -27,6 +27,16 @@ var testConfig = &config.ServerConfig{
 	RunAddr: ":8080",
 	Secret:  "b4952c3809196592c026529df00774e46bfb5be0",
 }
+
+const (
+	ErrorDeletingTestFile = "error deleting test file: %v"
+	ErrorStoringRecord    = "error storing value: %v"
+	ErrorClosingBody      = "error close body: %v"
+	ErrorSetupRouter      = "failed to setup router: %v"
+	ErrorSetupStorage     = "failed to initialize a new storage: %v"
+
+	TestStoragePath = "./test.json"
+)
 
 func Test_redirectToOriginal(t *testing.T) {
 	type args struct {
@@ -68,28 +78,36 @@ func Test_redirectToOriginal(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 
-			storage, err := fs.NewFileStorage("./test.json")
+			storage, err := fs.NewFileStorage(TestStoragePath)
 			if err != nil {
-				t.Errorf("failed to initialize a new storage: %v", err)
+				t.Errorf(ErrorSetupStorage, err)
 				return
 			}
-			defer storage.DeleteStorageFile()
+			defer func() {
+				if err := storage.DeleteStorageFile(); err != nil {
+					t.Errorf(ErrorDeletingTestFile, err)
+				}
+			}()
 
 			for url := range tt.args.urls {
-				storage.Put(url, tt.args.urls[url], "")
+				if _, err := storage.Put(url, tt.args.urls[url], ""); err != nil {
+					t.Errorf(ErrorStoringRecord, err)
+				}
 			}
 
 			testApp := NewApp(testConfig, storage, zap.L().Sugar())
 			r, err := testApp.SetupRouter()
 			if err != nil {
-				t.Errorf("failed to setup router: %v", err)
+				t.Errorf(ErrorSetupRouter, err)
 			}
 			req := httptest.NewRequest(http.MethodGet, tt.args.shortURL, nil)
 
 			r.ServeHTTP(w, req)
 
 			res := w.Result()
-			defer res.Body.Close()
+			if err := res.Body.Close(); err != nil {
+				t.Errorf(ErrorClosingBody, err)
+			}
 
 			if tt.args.shouldRedirect {
 				assert.Equal(t, tt.args.originalURL, res.Header.Get("Location"))
@@ -133,29 +151,37 @@ func Test_shortURL_V1(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 
-			storage, err := fs.NewFileStorage("./test.json")
+			storage, err := fs.NewFileStorage(TestStoragePath)
 			if err != nil {
-				t.Errorf("failed to initialize a new storage: %v", err)
+				t.Errorf(ErrorSetupStorage, err)
 				return
 			}
-			defer storage.DeleteStorageFile()
+			defer func() {
+				if err := storage.DeleteStorageFile(); err != nil {
+					t.Errorf(ErrorDeletingTestFile, err)
+				}
+			}()
 
 			for url := range tt.args.urls {
-				storage.Put(url, tt.args.urls[url], "")
+				if _, err := storage.Put(url, tt.args.urls[url], ""); err != nil {
+					t.Errorf(ErrorStoringRecord, err)
+				}
 			}
 
 			testApp := NewApp(testConfig, storage, zap.L().Sugar())
 			r, err := testApp.SetupRouter()
 			if err != nil {
-				t.Errorf("failed to setup router: %v", err)
+				t.Errorf(ErrorSetupRouter, err)
 			}
 			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer([]byte(tt.args.originalURL)))
-			req.Header.Add("Content-Type", "text/plain")
+			req.Header.Add(contentType, textPlain)
 
 			r.ServeHTTP(w, req)
 
 			res := w.Result()
-			defer res.Body.Close()
+			if err := res.Body.Close(); err != nil {
+				t.Errorf(ErrorClosingBody, err)
+			}
 			body, err := io.ReadAll(res.Body)
 
 			require.NoError(t, err)
@@ -196,34 +222,42 @@ func Test_shortURL_V2(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 
-			storage, err := fs.NewFileStorage("./test.json")
+			storage, err := fs.NewFileStorage(TestStoragePath)
 			if err != nil {
-				t.Errorf("failed to initialize a new storage: %v", err)
+				t.Errorf(ErrorSetupStorage, err)
 				return
 			}
-			defer storage.DeleteStorageFile()
+			defer func() {
+				if err := storage.DeleteStorageFile(); err != nil {
+					t.Errorf(ErrorDeletingTestFile, err)
+				}
+			}()
 
 			for url := range tt.args.urls {
-				storage.Put(url, tt.args.urls[url], "")
+				if _, err := storage.Put(url, tt.args.urls[url], ""); err != nil {
+					t.Errorf(ErrorStoringRecord, err)
+				}
 			}
 
 			testApp := NewApp(testConfig, storage, zap.L().Sugar())
 			r, err := testApp.SetupRouter()
 			if err != nil {
-				t.Errorf("failed to setup router: %v", err)
+				t.Errorf(ErrorSetupRouter, err)
 			}
 			reqObj := models.ShortenReq{
 				URL: tt.args.originalURL,
 			}
 			obj, err := json.Marshal(reqObj)
 			require.NoError(t, err)
-			req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewBuffer(obj))
-			req.Header.Add("Content-Type", "application/json")
+			req := httptest.NewRequest(http.MethodPost, apiShortenPath, bytes.NewBuffer(obj))
+			req.Header.Add(contentType, applicationJSON)
 
 			r.ServeHTTP(w, req)
 
 			res := w.Result()
-			defer res.Body.Close()
+			if err := res.Body.Close(); err != nil {
+				t.Errorf(ErrorClosingBody, err)
+			}
 			body, err := io.ReadAll(res.Body)
 
 			require.NoError(t, err)
@@ -237,17 +271,21 @@ func BenchmarkShortUrl(b *testing.B) {
 	w := httptest.NewRecorder()
 	length := 10
 
-	storage, err := fs.NewFileStorage("./test.json")
+	storage, err := fs.NewFileStorage(TestStoragePath)
 	if err != nil {
-		b.Errorf("failed to initialize a new storage: %v", err)
+		b.Errorf(ErrorSetupStorage, err)
 		return
 	}
-	defer storage.DeleteStorageFile()
+	defer func() {
+		if err := storage.DeleteStorageFile(); err != nil {
+			b.Errorf(ErrorDeletingTestFile, err)
+		}
+	}()
 
 	testApp := NewApp(testConfig, storage, zap.L().Sugar())
 	r, err := testApp.SetupRouter()
 	if err != nil {
-		b.Errorf("failed to setup router: %v", err)
+		b.Errorf(ErrorSetupRouter, err)
 	}
 
 	b.ResetTimer()
@@ -262,29 +300,27 @@ func BenchmarkShortUrl(b *testing.B) {
 		}
 		obj, _ := json.Marshal(reqObj)
 		req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewBuffer(obj))
-		req.Header.Add("Content-Type", "application/json")
+		req.Header.Add(contentType, "application/json")
 		b.StartTimer()
 
 		r.ServeHTTP(w, req)
 
-		w.Result()
+		res := w.Result()
+		if err := res.Body.Close(); err != nil {
+			b.Errorf("cant close body: %v", err)
+		}
 	}
 }
 
 func TestApp_DeleteUserRecords(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-
-	c.Params = []gin.Param{{Key: auth.UserIDKey, Value: "1"}}
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	store := mocks.NewMockStore(ctrl)
 
 	gomock.InOrder(
-		store.EXPECT().DeleteMany(gomock.Any(), "1").Return(nil),
+		store.EXPECT().DeleteMany(models.DeleteUserURLsReq{"1", "2"}, gomock.Any()).Return(nil),
 	)
 
 	app := NewApp(testConfig, store, zap.L().Sugar())
@@ -302,7 +338,9 @@ func TestApp_DeleteUserRecords(t *testing.T) {
 		logger *zap.SugaredLogger
 	}
 	type args struct {
-		c *gin.Context
+		url      string
+		urls     models.DeleteUserURLsReq
+		wantCode int
 	}
 	tests := []struct {
 		name   string
@@ -310,28 +348,219 @@ func TestApp_DeleteUserRecords(t *testing.T) {
 		args   args
 	}{
 		{
-			name: "test of the test",
+			name: "successfull delete",
 			fields: fields{
 				config: testConfig,
 				store:  store,
 				logger: zap.L().Sugar(),
 			},
 			args: args{
-				c: c,
+				url:      "/api/user/urls",
+				urls:     models.DeleteUserURLsReq{"1", "2"},
+				wantCode: http.StatusAccepted,
+			},
+		},
+	}
+	//nolint: dupl // unnessary deduplication, prevent further expansion
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := json.Marshal(tt.args.urls)
+			if err != nil {
+				t.Error(err)
+			}
+
+			url, err := url.JoinPath(srv.URL, tt.args.url)
+			if err != nil {
+				t.Error(err)
+			}
+
+			req, err := http.NewRequest(http.MethodDelete, url, bytes.NewBuffer(b))
+			if err != nil {
+				t.Error(err)
+			}
+			if err := req.Body.Close(); err != nil {
+				t.Error(err)
+			}
+
+			res, err := srv.Client().Do(req)
+			if err != nil {
+				t.Error(err)
+			}
+			if err := res.Body.Close(); err != nil {
+				t.Error(err)
+			}
+
+			assert.Equal(t, tt.args.wantCode, res.StatusCode)
+		})
+	}
+}
+
+func TestApp_Ping(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockStore(ctrl)
+
+	gomock.InOrder(
+		store.EXPECT().Ping().Return(nil),
+		store.EXPECT().Ping().Return(fmt.Errorf("lost connection to db")),
+	)
+
+	app := NewApp(testConfig, store, zap.L().Sugar())
+	r, err := app.SetupRouter()
+	if err != nil {
+		t.Error(err)
+	}
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	type args struct {
+		wantCode int
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "connected",
+			args: args{
+				wantCode: http.StatusOK,
+			},
+		},
+		{
+			name: "lost connection",
+			args: args{
+				wantCode: http.StatusInternalServerError,
 			},
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			a := &App{
-				config: tt.fields.config,
-				store:  tt.fields.store,
-				logger: tt.fields.logger,
+			url, err := url.JoinPath(srv.URL, "/ping")
+			if err != nil {
+				t.Error(err)
 			}
 
-			tt.args.c.Request = httptest.NewRequest(http.MethodDelete, "/user/urls", bytes.NewBuffer([]byte("[\"1\",\"2\"]")))
+			req, err := http.NewRequest(http.MethodGet, url, nil)
+			if err != nil {
+				t.Error(err)
+			}
 
-			a.DeleteUserRecords(tt.args.c)
+			res, err := srv.Client().Do(req)
+			if err != nil {
+				t.Error(err)
+			}
+			if err := res.Body.Close(); err != nil {
+				t.Error(err)
+			}
+
+			assert.Equal(t, tt.args.wantCode, res.StatusCode)
+		})
+	}
+}
+
+func TestApp_ShortenBatch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockStore(ctrl)
+
+	gomock.InOrder(
+		store.EXPECT().PutBatch(
+			[]models.URLBatchReq{
+				{
+					CorrelationID: "1",
+					OriginalURL:   "ya.ru",
+				},
+			},
+			gomock.Any(),
+		).Return([]models.URLBatchRes{
+			{
+				CorrelationID: "1",
+				ShortURL:      "http://localhost:8080/abc",
+			},
+		}, nil),
+	)
+
+	app := NewApp(testConfig, store, zap.L().Sugar())
+	r, err := app.SetupRouter()
+	if err != nil {
+		t.Error(err)
+	}
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	type fields struct {
+		config *config.ServerConfig
+		store  Store
+		logger *zap.SugaredLogger
+	}
+	type args struct {
+		url      string
+		batch    []models.URLBatchReq
+		wantCode int
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+	}{
+		{
+			name: "successfull put batch",
+			fields: fields{
+				config: testConfig,
+				store:  store,
+				logger: zap.L().Sugar(),
+			},
+			args: args{
+				url: "/api/shorten/batch",
+				batch: []models.URLBatchReq{
+					{
+						CorrelationID: "1",
+						OriginalURL:   "ya.ru",
+					},
+				},
+				wantCode: http.StatusCreated,
+			},
+		},
+	}
+	//nolint: dupl // unnessary deduplication
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := json.Marshal(tt.args.batch)
+			if err != nil {
+				t.Error(err)
+			}
+
+			url, err := url.JoinPath(srv.URL, tt.args.url)
+			if err != nil {
+				t.Error(err)
+			}
+
+			req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(b))
+			if err != nil {
+				t.Error(err)
+			}
+			if err := req.Body.Close(); err != nil {
+				t.Error(err)
+			}
+
+			res, err := srv.Client().Do(req)
+			if err != nil {
+				t.Error(err)
+			}
+			if err := res.Body.Close(); err != nil {
+				t.Error(err)
+			}
+
+			assert.Equal(t, tt.args.wantCode, res.StatusCode)
 		})
 	}
 }

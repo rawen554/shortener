@@ -1,14 +1,16 @@
+// Модуль аутентификации клиентских запросов.
 package auth
 
 import (
 	"errors"
-	"log"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type Claims struct {
@@ -16,12 +18,16 @@ type Claims struct {
 	UserID string
 }
 
-const tokenExp = time.Hour * 3
-const cookieName = "jwt-token"
-const UserIDKey = "userID"
+const (
+	tokenExp   = time.Hour * 3
+	maxAge     = 3600 * 24 * 30
+	cookieName = "jwt-token"
+	UserIDKey  = "userID"
+)
 
 var ErrTokenNotValid = errors.New("token is not valid")
 var ErrNoUserInToken = errors.New("no user data in token")
+var ErrBuildJWTString = errors.New("error building JWT string")
 
 func BuildJWTString(secret string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
@@ -33,7 +39,7 @@ func BuildJWTString(secret string) (string, error) {
 
 	tokenString, err := token.SignedString([]byte(secret))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error creating signed JWT: %w", err)
 	}
 
 	// возвращаем строку токена
@@ -61,22 +67,22 @@ func GetUserID(tokenString string, secret string) (string, error) {
 	return claims.UserID, nil
 }
 
-func AuthMiddleware(secret string) gin.HandlerFunc {
+func AuthMiddleware(secret string, logger *zap.SugaredLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		cookie, err := c.Cookie(cookieName)
 		if err != nil {
 			if errors.Is(err, http.ErrNoCookie) {
 				token, err := BuildJWTString(secret)
 				if err != nil {
-					log.Printf("Error building JWT string: %v", err)
-					c.Writer.WriteHeader(http.StatusInternalServerError)
+					logger.Error(ErrBuildJWTString, err)
+					c.AbortWithStatus(http.StatusInternalServerError)
 					return
 				}
-				c.SetCookie(cookieName, token, 3600*24*30, "", "", false, true)
+				c.SetCookie(cookieName, token, maxAge, "", "", false, true)
 				cookie = token
 			} else {
-				log.Printf("Error reading cookie[%v]: %v", cookieName, err)
-				c.Writer.WriteHeader(http.StatusInternalServerError)
+				logger.Error("Error reading cookie[%v]: %v", cookieName, err)
+				c.AbortWithStatus(http.StatusInternalServerError)
 				return
 			}
 		}
@@ -84,23 +90,23 @@ func AuthMiddleware(secret string) gin.HandlerFunc {
 		userID, err := GetUserID(cookie, secret)
 		if err != nil {
 			if errors.Is(err, ErrNoUserInToken) {
-				c.Writer.WriteHeader(http.StatusUnauthorized)
+				c.AbortWithStatus(http.StatusUnauthorized)
 				return
 			}
 			if errors.Is(err, ErrTokenNotValid) {
 				token, err := BuildJWTString(secret)
 				if err != nil {
-					log.Printf("Error building JWT string: %v", err)
-					c.Writer.WriteHeader(http.StatusInternalServerError)
+					logger.Error(ErrBuildJWTString, err)
+					c.AbortWithStatus(http.StatusInternalServerError)
 					return
 				}
 				userID, err = GetUserID(token, secret)
 				if err != nil {
-					log.Printf("Revalidate error user id from renewed token: %v", err)
-					c.Writer.WriteHeader(http.StatusInternalServerError)
+					logger.Error("Revalidate error user id from renewed token: %v", err)
+					c.AbortWithStatus(http.StatusInternalServerError)
 					return
 				}
-				c.SetCookie(cookieName, token, 3600*24*30, "", "", false, true)
+				c.SetCookie(cookieName, token, maxAge, "", "", false, true)
 			}
 		}
 

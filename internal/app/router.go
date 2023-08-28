@@ -1,39 +1,39 @@
 package app
 
 import (
-	"fmt"
-
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
+	"github.com/rawen554/shortener/internal/middleware/compress"
 	ginLogger "github.com/rawen554/shortener/internal/middleware/logger"
 
 	"github.com/rawen554/shortener/internal/middleware/auth"
-	"github.com/rawen554/shortener/internal/middleware/compress"
 )
 
 func (a *App) SetupRouter() (*gin.Engine, error) {
 	r := gin.New()
 	pprof.Register(r)
 
-	ginLoggerMiddleware, err := ginLogger.Logger(a.logger.Named("middleware"))
-	if err != nil {
-		return nil, fmt.Errorf("error creating middleware logger func: %w", err)
-	}
-	r.Use(ginLoggerMiddleware)
-	r.Use(auth.AuthMiddleware(a.config.Secret))
+	r.Use(ginLogger.Logger(a.logger.Named("middleware")))
+	r.Use(auth.AuthMiddleware(a.config.Secret, a.logger.Named("auth_middleware")))
 	r.Use(compress.Compress())
 
 	r.GET("/:id", a.RedirectToOriginal)
-	r.POST("/", a.ShortenURL)
-	r.GET("/ping", a.Ping)
+	r.POST(rootPath, a.ShortenURL)
+	r.GET(pingPath, a.Ping)
 
 	api := r.Group("/api")
 	{
-		api.POST("/shorten", a.ShortenURL)
-		api.POST("/shorten/batch", a.ShortenBatch)
+		shortenerAPI := api.Group("/shorten")
+		{
+			shortenerAPI.POST("", a.ShortenURL)
+			shortenerAPI.POST("/batch", a.ShortenBatch)
+		}
 
-		api.GET("/user/urls", a.GetUserRecords)
-		api.DELETE("/user/urls", a.DeleteUserRecords)
+		userAPI := api.Group("/user/urls")
+		{
+			userAPI.GET("", a.GetUserRecords)
+			userAPI.DELETE("", a.DeleteUserRecords)
+		}
 	}
 
 	return r, nil

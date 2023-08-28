@@ -30,7 +30,7 @@ var ErrDBInsertConflict = errors.New("conflict insert into table, returned store
 // ErrURLDeleted Запрашиваемый URL удален.
 var ErrURLDeleted = errors.New("url is deleted")
 
-// Функция получения экземпляра DBStore.
+// NewPostgresStore Функция получения экземпляра DBStore.
 func NewPostgresStore(ctx context.Context, dsn string) (*DBStore, error) {
 	if err := runMigrations(dsn); err != nil {
 		return nil, fmt.Errorf("failed to run DB migrations: %w", err)
@@ -137,7 +137,11 @@ func (db *DBStore) DeleteMany(ids models.DeleteUserURLsReq, userID string) error
 		batch.Queue(query, url, userID)
 	}
 	batchResults := db.conn.SendBatch(ctx, batch)
-	defer batchResults.Close()
+	defer func() {
+		if err := batchResults.Close(); err != nil {
+			log.Printf("error closing result: %v", err)
+		}
+	}()
 
 	for range ids {
 		_, err := batchResults.Exec()
@@ -192,7 +196,11 @@ func (db *DBStore) PutBatch(urls []models.URLBatchReq, userID string) ([]models.
 		batch.Queue(query, args)
 	}
 	results := db.conn.SendBatch(context.Background(), batch)
-	defer results.Close()
+	defer func() {
+		if err := results.Close(); err != nil {
+			log.Printf("error closing batch result: %v", err)
+		}
+	}()
 
 	for _, url := range urls {
 		id, err := results.Exec()

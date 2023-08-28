@@ -3,7 +3,9 @@ package fs
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"log"
 	"os"
 	"strconv"
 
@@ -11,11 +13,13 @@ import (
 	"github.com/rawen554/shortener/internal/store/memory"
 )
 
+const FileStorageFilePerm = 0600
+
 type FSStorage struct {
-	path string
 	*memory.MemoryStorage
-	sr *StorageReader
-	sw *StorageWriter
+	sr   *StorageReader
+	sw   *StorageWriter
+	path string
 }
 
 func NewFileStorage(filename string) (*FSStorage, error) {
@@ -31,7 +35,7 @@ func NewFileStorage(filename string) (*FSStorage, error) {
 
 	storage, err := memory.NewMemoryStorage(records)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error initialising memory storage with records: %w", err)
 	}
 
 	sw, err := NewStorageWriter(filename)
@@ -69,11 +73,16 @@ func (s *FSStorage) Ping() error {
 }
 
 func (s *FSStorage) Close() {
-	s.sw.file.Close()
+	if err := s.sw.file.Close(); err != nil {
+		log.Printf("error closing file: %v", err)
+	}
 }
 
 func (s *FSStorage) DeleteStorageFile() error {
-	return os.Remove(s.path)
+	if err := os.Remove(s.path); err != nil {
+		return fmt.Errorf("error delete file: %w", err)
+	}
+	return nil
 }
 
 type StorageReader struct {
@@ -82,9 +91,9 @@ type StorageReader struct {
 }
 
 func NewStorageReader(filename string) (*StorageReader, error) {
-	file, err := os.OpenFile(filename, os.O_RDONLY|os.O_CREATE, 0666)
+	file, err := os.OpenFile(filename, os.O_RDONLY|os.O_CREATE, FileStorageFilePerm)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error open file: %w", err)
 	}
 
 	return &StorageReader{
@@ -111,7 +120,7 @@ func (sr *StorageReader) ReadFromFile() (map[string]models.URLRecordMemory, erro
 func (sr *StorageReader) ReadLine() (*models.URLRecordFS, error) {
 	r := models.URLRecordFS{}
 	if err := sr.decoder.Decode(&r); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error decode records: %w", err)
 	}
 
 	return &r, nil
@@ -123,9 +132,9 @@ type StorageWriter struct {
 }
 
 func NewStorageWriter(filename string) (*StorageWriter, error) {
-	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, FileStorageFilePerm)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error opening file: %w", err)
 	}
 
 	return &StorageWriter{
@@ -135,15 +144,19 @@ func NewStorageWriter(filename string) (*StorageWriter, error) {
 }
 
 func (sw *StorageWriter) AppendToFile(r *models.URLRecordFS) error {
-	return sw.encoder.Encode(&r)
+	if err := sw.encoder.Encode(&r); err != nil {
+		return fmt.Errorf("error encode records: %w", err)
+	}
+	return nil
 }
 
 func (s *FSStorage) Put(id string, url string, userID string) (string, error) {
 	id, err := s.MemoryStorage.Put(id, url, userID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error put file: %w", err)
 	}
-	return id, s.sw.AppendToFile(&models.URLRecordFS{UUID: strconv.Itoa(s.UrlsCount), UserID: userID, URLRecord: models.URLRecord{
-		OriginalURL: url, ShortURL: id,
-	}})
+	return id,
+		s.sw.AppendToFile(&models.URLRecordFS{UUID: strconv.Itoa(s.UrlsCount), UserID: userID, URLRecord: models.URLRecord{
+			OriginalURL: url, ShortURL: id,
+		}})
 }

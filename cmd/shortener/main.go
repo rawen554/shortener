@@ -24,12 +24,13 @@ const (
 
 func main() {
 	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancelCtx()
 
 	logger, err := logger.NewLogger()
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	defer cancelCtx()
 
 	config, err := config.ParseFlags()
 	if err != nil {

@@ -1,24 +1,18 @@
+// Модуль логирования запросов.
 package logger
 
 import (
-	"bytes"
-	"io"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-// Получение middleware функции, которая будет логгировать входящие запросы.
-func Logger(logger *zap.SugaredLogger) (gin.HandlerFunc, error) {
+// Logger Получение middleware функции, которая будет логгировать входящие запросы.
+func Logger(logger *zap.SugaredLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		uri := c.Request.RequestURI
 		method := c.Request.Method
-		body, err := io.ReadAll(c.Request.Body)
-		if err != nil {
-			return
-		}
-		c.Request.Body = io.NopCloser(bytes.NewReader(body))
 
 		t := time.Now()
 		c.Next()
@@ -31,6 +25,5 @@ func Logger(logger *zap.SugaredLogger) (gin.HandlerFunc, error) {
 			"Status", c.Writer.Status(),
 			"Size", c.Writer.Size(),
 		)
-		logger.Debugln("Data", string(body))
-	}, nil
+	}
 }
