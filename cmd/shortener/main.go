@@ -11,12 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/rawen554/shortener/internal/app"
-	"github.com/rawen554/shortener/internal/auth"
-	"github.com/rawen554/shortener/internal/compress"
 	"github.com/rawen554/shortener/internal/config"
-	ginLogger "github.com/rawen554/shortener/internal/logger"
+	"github.com/rawen554/shortener/internal/logger"
 	"github.com/rawen554/shortener/internal/store"
 )
 
@@ -25,44 +22,24 @@ const (
 	timeoutShutdown       = time.Second * 10
 )
 
-func setupRouter(a *app.App) *gin.Engine {
-	r := gin.New()
-	ginLoggerMiddleware, err := ginLogger.Logger()
+func main() {
+	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt)
+
+	logger, err := logger.NewLogger()
 	if err != nil {
 		log.Fatal(err)
 	}
-	r.Use(ginLoggerMiddleware)
-	r.Use(auth.AuthMiddleware(a.Config.Seed))
-	r.Use(compress.Compress())
 
-	r.GET("/:id", a.RedirectToOriginal)
-	r.POST("/", a.ShortenURL)
-	r.GET("/ping", a.Ping)
-
-	api := r.Group("/api")
-	{
-		api.POST("/shorten", a.ShortenURL)
-		api.POST("/shorten/batch", a.ShortenBatch)
-
-		api.GET("/user/urls", a.GetUserRecords)
-		api.DELETE("/user/urls", a.DeleteUserRecords)
-	}
-
-	return r
-}
-
-func main() {
-	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancelCtx()
 
 	config, err := config.ParseFlags()
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 
 	storage, err := store.NewStore(ctx, config)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 
 	wg := &sync.WaitGroup{}
@@ -72,7 +49,7 @@ func main() {
 
 	wg.Add(1)
 	go func() {
-		defer log.Print("closed DB")
+		defer logger.Info("closed DB")
 		defer wg.Done()
 		<-ctx.Done()
 
@@ -81,11 +58,14 @@ func main() {
 
 	componentsErrs := make(chan error, 1)
 
-	app := app.NewApp(config, storage)
+	app := app.NewApp(config, storage, logger.Named("app"))
 
-	r := setupRouter(app)
+	r, err := app.SetupRouter()
+	if err != nil {
+		logger.Fatal(err)
+	}
 	srv := http.Server{
-		Addr:    config.FlagRunAddr,
+		Addr:    config.RunAddr,
 		Handler: r,
 	}
 
@@ -100,14 +80,14 @@ func main() {
 
 	wg.Add(1)
 	go func() {
-		defer log.Print("server has been shutdown")
+		defer logger.Info("server has been shutdown")
 		defer wg.Done()
 		<-ctx.Done()
 
 		shutdownTimeoutCtx, cancelShutdownTimeoutCtx := context.WithTimeout(context.Background(), timeoutServerShutdown)
 		defer cancelShutdownTimeoutCtx()
 		if err := srv.Shutdown(shutdownTimeoutCtx); err != nil {
-			log.Printf("an error occurred during server shutdown: %v", err)
+			logger.Errorf("an error occurred during server shutdown: %v", err)
 		}
 	}()
 
@@ -123,6 +103,6 @@ func main() {
 		defer cancelCtx()
 
 		<-ctx.Done()
-		log.Fatal("failed to gracefully shutdown the service")
+		logger.Fatal("failed to gracefully shutdown the service")
 	}()
 }

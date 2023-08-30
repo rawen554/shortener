@@ -27,7 +27,7 @@ func (s *MemoryStorage) Put(id string, url string, userID string) (string, error
 		OriginalURL: url,
 		UserID:      userID,
 	}
-	s.UrlsCount += 1
+	s.UrlsCount++
 	return id, nil
 }
 

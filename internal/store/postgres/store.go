@@ -16,13 +16,21 @@ import (
 	"github.com/rawen554/shortener/internal/models"
 )
 
+// DBStore - Интерфейс работы с пулом соединений.
 type DBStore struct {
 	conn *pgxpool.Pool
 }
 
+// CPUMultiplyer Мультипликатор для конфигурации максимального кол-ва соединений.
+const CPUMultiplyer = 4
+
+// ErrDBInsertConflict Обнаружен конфликт в БД, необходимо его обработать.
 var ErrDBInsertConflict = errors.New("conflict insert into table, returned stored value")
+
+// ErrURLDeleted Запрашиваемый URL удален.
 var ErrURLDeleted = errors.New("url is deleted")
 
+// NewPostgresStore Функция получения экземпляра DBStore.
 func NewPostgresStore(ctx context.Context, dsn string) (*DBStore, error) {
 	if err := runMigrations(dsn); err != nil {
 		return nil, fmt.Errorf("failed to run DB migrations: %w", err)
@@ -30,14 +38,14 @@ func NewPostgresStore(ctx context.Context, dsn string) (*DBStore, error) {
 
 	conf, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse config from string: %w", err)
 	}
 
-	conf.MaxConns = int32(runtime.NumCPU() * 4)
+	conf.MaxConns = int32(runtime.NumCPU() * CPUMultiplyer)
 
 	conn, err := pgxpool.NewWithConfig(ctx, conf)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create new conn pool: %w", err)
 	}
 	dbStore := &DBStore{conn: conn}
 
@@ -47,6 +55,7 @@ func NewPostgresStore(ctx context.Context, dsn string) (*DBStore, error) {
 //go:embed migrations/*.sql
 var migrationsDir embed.FS
 
+// Применение миграций из папки в текущем каталоге - migrations.
 func runMigrations(dsn string) error {
 	d, err := iofs.New(migrationsDir, "migrations")
 	if err != nil {
@@ -66,7 +75,10 @@ func runMigrations(dsn string) error {
 }
 
 func (db *DBStore) Ping() error {
-	return db.conn.Ping(context.Background())
+	if err := db.conn.Ping(context.Background()); err != nil {
+		return fmt.Errorf("lost connection to db: %w", err)
+	}
+	return nil
 }
 
 func (db *DBStore) Close() {
@@ -79,7 +91,7 @@ func (db *DBStore) Get(id string) (string, error) {
 	var deleted bool
 	err := row.Scan(&result, &deleted)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("cant scan result: %w", err)
 	}
 
 	if deleted {
@@ -98,14 +110,14 @@ func (db *DBStore) GetAllByUserID(userID string) ([]models.URLRecord, error) {
 		WHERE user_id = $1 AND deleted_flag = FALSE
 	`, userID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query all users records: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
 		record := models.URLRecord{}
 		if err := rows.Scan(&record.ShortURL, &record.OriginalURL); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cant scan records: %w", err)
 		}
 
 		result = append(result, record)
@@ -125,13 +137,17 @@ func (db *DBStore) DeleteMany(ids models.DeleteUserURLsReq, userID string) error
 		batch.Queue(query, url, userID)
 	}
 	batchResults := db.conn.SendBatch(ctx, batch)
-	defer batchResults.Close()
+	defer func() {
+		if err := batchResults.Close(); err != nil {
+			log.Printf("error closing result: %v", err)
+		}
+	}()
 
 	for range ids {
 		_, err := batchResults.Exec()
 		if err != nil {
 			log.Printf("error executing: %v", err)
-			return err
+			return fmt.Errorf("cant exec batch: %w", err)
 		}
 	}
 
@@ -150,7 +166,7 @@ func (db *DBStore) Put(id string, url string, userID string) (string, error) {
 	`, id, url, userID)
 	var result string
 	if err := row.Scan(&result); err != nil {
-		return "", err
+		return "", fmt.Errorf("cant scan put record result: %w", err)
 	}
 
 	if id != result {
@@ -180,12 +196,16 @@ func (db *DBStore) PutBatch(urls []models.URLBatchReq, userID string) ([]models.
 		batch.Queue(query, args)
 	}
 	results := db.conn.SendBatch(context.Background(), batch)
-	defer results.Close()
+	defer func() {
+		if err := results.Close(); err != nil {
+			log.Printf("error closing batch result: %v", err)
+		}
+	}()
 
 	for _, url := range urls {
 		id, err := results.Exec()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cant exec tx: %w", err)
 		}
 		result = append(result, models.URLBatchRes{
 			CorrelationID: url.CorrelationID,
