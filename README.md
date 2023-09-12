@@ -14,3 +14,7 @@
 
 Запустить `godoc -http:8080`
 Перейти по адресу [http://localhost:8080/pkg/github.com/rawen554/shortener/?m=all](http://localhost:8080/pkg/github.com/rawen554/shortener/?m=all)
+
+## Запуск сервиса
+
+`go run cmd/staticlint/main.go`
