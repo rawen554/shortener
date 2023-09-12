@@ -17,6 +17,12 @@ import (
 	"github.com/rawen554/shortener/internal/store"
 )
 
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
+)
+
 const (
 	timeoutServerShutdown = time.Second * 5
 	timeoutShutdown       = time.Second * 10
@@ -29,6 +35,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	logger.Infof("Build version: %s", buildVersion)
+	logger.Infof("Build date: %s", buildDate)
+	logger.Infof("Build commit: %s", buildCommit)
 
 	defer cancelCtx()
 

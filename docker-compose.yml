@@ -1,0 +1,38 @@
+services:
+  shortener:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    image: shortener
+    environment:
+      - DATABASE_URI=postgres://shortener:P@ssw0rd@shortener-db:5432/shortener?sslmode=disable
+    expose:
+      - 8080
+    ports:
+      - "8080:8080"
+    networks:
+      - shortener
+    depends_on:
+      - shortener-db
+    stop_grace_period: 5s
+
+  shortener-db:
+    image: postgres:15.3
+    volumes:
+      - type: bind
+        source: db/init/
+        target: /docker-entrypoint-initdb.d
+      - type: bind
+        source: db/data/
+        target: /var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=P@ssw0rd
+    networks:
+      - shortener
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "db_prod"]
+      interval: 10s
+      timeout: 60s
+
+networks:
+  shortener:
