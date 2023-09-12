@@ -59,9 +59,13 @@ func (s *MemoryStorage) GetAllByUserID(userID string) ([]models.URLRecord, error
 }
 
 func (s *MemoryStorage) DeleteMany(ids models.DeleteUserURLsReq, userID string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
 	for _, id := range ids {
 		if url, ok := s.urls[id]; ok && url.UserID == userID {
 			delete(s.urls, id)
+			s.UrlsCount--
 		}
 	}
 

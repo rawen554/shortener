@@ -15,300 +15,245 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/rawen554/shortener/internal/config"
 	"github.com/rawen554/shortener/internal/models"
-	"github.com/rawen554/shortener/internal/store/fs"
 	"github.com/rawen554/shortener/internal/store/mocks"
-	"github.com/rawen554/shortener/internal/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-var testConfig = &config.ServerConfig{
-	RunAddr: ":8080",
-	Secret:  "b4952c3809196592c026529df00774e46bfb5be0",
-}
+func Test_GetRecord(t *testing.T) {
+	const link = "link"
 
-const (
-	ErrorDeletingTestFile = "error deleting test file: %v"
-	ErrorStoringRecord    = "error storing value: %v"
-	ErrorClosingBody      = "error close body: %v"
-	ErrorSetupRouter      = "failed to setup router: %v"
-	ErrorSetupStorage     = "failed to initialize a new storage: %v"
-
-	TestStoragePath = "./test.json"
-)
-
-func Test_redirectToOriginal(t *testing.T) {
-	type args struct {
-		urls           map[string]string
-		shortURL       string
-		originalURL    string
-		shouldRedirect bool
-	}
-	tests := []struct {
-		name string
-		args args
-	}{
-		{
-			name: "simple redirect",
-			args: args{
-				urls: map[string]string{
-					"1": "http://ya.ru",
-				},
-				originalURL:    "http://ya.ru",
-				shortURL:       "/1",
-				shouldRedirect: true,
-			},
-		},
-		{
-			name: "error short url not found",
-			args: args{
-				urls: map[string]string{
-					"1": "http://ya.ru",
-				},
-				originalURL:    "http://ya.ru",
-				shortURL:       "/2",
-				shouldRedirect: false,
-			},
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			gin.SetMode(gin.TestMode)
-			w := httptest.NewRecorder()
-
-			storage, err := fs.NewFileStorage(TestStoragePath)
-			if err != nil {
-				t.Errorf(ErrorSetupStorage, err)
-				return
-			}
-			defer func() {
-				if err := storage.DeleteStorageFile(); err != nil {
-					t.Errorf(ErrorDeletingTestFile, err)
-				}
-			}()
-
-			for url := range tt.args.urls {
-				if _, err := storage.Put(url, tt.args.urls[url], ""); err != nil {
-					t.Errorf(ErrorStoringRecord, err)
-				}
-			}
-
-			testApp := NewApp(testConfig, storage, zap.L().Sugar())
-			r, err := testApp.SetupRouter()
-			if err != nil {
-				t.Errorf(ErrorSetupRouter, err)
-			}
-			req := httptest.NewRequest(http.MethodGet, tt.args.shortURL, nil)
-
-			r.ServeHTTP(w, req)
-
-			res := w.Result()
-			if err := res.Body.Close(); err != nil {
-				t.Errorf(ErrorClosingBody, err)
-			}
-
-			if tt.args.shouldRedirect {
-				assert.Equal(t, tt.args.originalURL, res.Header.Get("Location"))
-				assert.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
-			} else {
-				assert.Equal(t, http.StatusNotFound, res.StatusCode)
-			}
-		})
-	}
-}
-
-func Test_shortURL_V1(t *testing.T) {
-	type args struct {
-		urls        map[string]string
-		originalURL string
-	}
-	tests := []struct {
-		name string
-		args args
-	}{
-		{
-			name: "add new url to empty map",
-			args: args{
-				urls:        make(map[string]string),
-				originalURL: "https://ya.ru",
-			},
-		},
-		{
-			name: "add new url to map",
-			args: args{
-				urls: map[string]string{
-					"abc": "https://ya.com",
-				},
-				originalURL: "https://ya.ru",
-			},
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			gin.SetMode(gin.TestMode)
-			w := httptest.NewRecorder()
-
-			storage, err := fs.NewFileStorage(TestStoragePath)
-			if err != nil {
-				t.Errorf(ErrorSetupStorage, err)
-				return
-			}
-			defer func() {
-				if err := storage.DeleteStorageFile(); err != nil {
-					t.Errorf(ErrorDeletingTestFile, err)
-				}
-			}()
-
-			for url := range tt.args.urls {
-				if _, err := storage.Put(url, tt.args.urls[url], ""); err != nil {
-					t.Errorf(ErrorStoringRecord, err)
-				}
-			}
-
-			testApp := NewApp(testConfig, storage, zap.L().Sugar())
-			r, err := testApp.SetupRouter()
-			if err != nil {
-				t.Errorf(ErrorSetupRouter, err)
-			}
-			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer([]byte(tt.args.originalURL)))
-			req.Header.Add(contentType, textPlain)
-
-			r.ServeHTTP(w, req)
-
-			res := w.Result()
-			if err := res.Body.Close(); err != nil {
-				t.Errorf(ErrorClosingBody, err)
-			}
-			body, err := io.ReadAll(res.Body)
-
-			require.NoError(t, err)
-			assert.NotEmpty(t, body)
-		})
-	}
-}
-
-func Test_shortURL_V2(t *testing.T) {
-	type args struct {
-		urls        map[string]string
-		originalURL string
-	}
-	tests := []struct {
-		name string
-		args args
-	}{
-		{
-			name: "add new url to empty map",
-			args: args{
-				urls:        make(map[string]string),
-				originalURL: "https://ya.ru",
-			},
-		},
-		{
-			name: "add new url to map",
-			args: args{
-				urls: map[string]string{
-					"abc": "https://ya.com",
-				},
-				originalURL: "https://ya.ru",
-			},
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			gin.SetMode(gin.TestMode)
-			w := httptest.NewRecorder()
-
-			storage, err := fs.NewFileStorage(TestStoragePath)
-			if err != nil {
-				t.Errorf(ErrorSetupStorage, err)
-				return
-			}
-			defer func() {
-				if err := storage.DeleteStorageFile(); err != nil {
-					t.Errorf(ErrorDeletingTestFile, err)
-				}
-			}()
-
-			for url := range tt.args.urls {
-				if _, err := storage.Put(url, tt.args.urls[url], ""); err != nil {
-					t.Errorf(ErrorStoringRecord, err)
-				}
-			}
-
-			testApp := NewApp(testConfig, storage, zap.L().Sugar())
-			r, err := testApp.SetupRouter()
-			if err != nil {
-				t.Errorf(ErrorSetupRouter, err)
-			}
-			reqObj := models.ShortenReq{
-				URL: tt.args.originalURL,
-			}
-			obj, err := json.Marshal(reqObj)
-			require.NoError(t, err)
-			req := httptest.NewRequest(http.MethodPost, apiShortenPath, bytes.NewBuffer(obj))
-			req.Header.Add(contentType, applicationJSON)
-
-			r.ServeHTTP(w, req)
-
-			res := w.Result()
-			if err := res.Body.Close(); err != nil {
-				t.Errorf(ErrorClosingBody, err)
-			}
-			body, err := io.ReadAll(res.Body)
-
-			require.NoError(t, err)
-			assert.NotEmpty(t, body)
-		})
-	}
-}
-
-func BenchmarkShortUrl(b *testing.B) {
 	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	length := 10
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	storage, err := fs.NewFileStorage(TestStoragePath)
-	if err != nil {
-		b.Errorf(ErrorSetupStorage, err)
-		return
-	}
-	defer func() {
-		if err := storage.DeleteStorageFile(); err != nil {
-			b.Errorf(ErrorDeletingTestFile, err)
-		}
-	}()
+	store := mocks.NewMockStore(ctrl)
 
-	testApp := NewApp(testConfig, storage, zap.L().Sugar())
-	r, err := testApp.SetupRouter()
+	gomock.InOrder(
+		store.EXPECT().Get("any").Return(link, nil),
+	)
+
+	app := NewApp(testConfig, store, zap.L().Sugar())
+	r, err := app.SetupRouter()
 	if err != nil {
-		b.Errorf(ErrorSetupRouter, err)
+		t.Error(err)
 	}
 
-	b.ResetTimer()
+	srv := httptest.NewServer(r)
+	defer srv.Close()
 
-	for i := 0; i < b.N; i++ {
-		b.StopTimer()
+	type args struct {
+		url      string
+		response string
+		wantCode int
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "successfull redirect",
+			args: args{
+				url:      "/any",
+				response: "/link",
+				wantCode: http.StatusTemporaryRedirect,
+			},
+		},
+	}
 
-		randURL, _ := utils.GenerateRandomString(length)
-		randURL = fmt.Sprintf("%s.ru", randURL)
-		reqObj := models.ShortenReq{
-			URL: randURL,
-		}
-		obj, _ := json.Marshal(reqObj)
-		req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewBuffer(obj))
-		req.Header.Add(contentType, "application/json")
-		b.StartTimer()
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			url, err := url.JoinPath(srv.URL, tt.args.url)
+			if err != nil {
+				t.Error(err)
+			}
 
-		r.ServeHTTP(w, req)
+			req, err := http.NewRequest(http.MethodGet, url, nil)
+			if err != nil {
+				t.Error(err)
+			}
 
-		res := w.Result()
-		if err := res.Body.Close(); err != nil {
-			b.Errorf("cant close body: %v", err)
-		}
+			client := srv.Client()
+			client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			}
+
+			res, err := client.Do(req)
+			if err != nil {
+				t.Error(err)
+			}
+
+			if err := res.Body.Close(); err != nil {
+				t.Error(err)
+			}
+
+			assert.Equal(t, tt.args.wantCode, res.StatusCode)
+			assert.Equal(t, tt.args.response, res.Header.Get("Location"))
+		})
+	}
+}
+
+func Test_PutRecord(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockStore(ctrl)
+
+	gomock.InOrder(
+		store.EXPECT().Put(gomock.Any(), gomock.Any(), gomock.Any()).Return("link", nil),
+	)
+
+	app := NewApp(testConfig, store, zap.L().Sugar())
+	r, err := app.SetupRouter()
+	if err != nil {
+		t.Error(err)
+	}
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	type args struct {
+		url      string
+		link     models.ShortenReq
+		wantCode int
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "successfull redirect",
+			args: args{
+				url:      "/",
+				link:     models.ShortenReq{URL: "link"},
+				wantCode: http.StatusCreated,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			url, err := url.JoinPath(srv.URL, tt.args.url)
+			if err != nil {
+				t.Error(err)
+			}
+
+			obj, err := json.Marshal(tt.args.link)
+			require.NoError(t, err)
+			req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(obj))
+			if err != nil {
+				t.Error(err)
+			}
+
+			client := srv.Client()
+			client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			}
+
+			res, err := client.Do(req)
+			if err != nil {
+				t.Error(err)
+			}
+
+			if err := res.Body.Close(); err != nil {
+				t.Error(err)
+			}
+
+			assert.Equal(t, tt.args.wantCode, res.StatusCode)
+		})
+	}
+}
+
+func TestApp_GetUserRecords(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockStore(ctrl)
+
+	gomock.InOrder(
+		store.EXPECT().GetAllByUserID(gomock.Any()).Return([]models.URLRecord{}, nil),
+		store.EXPECT().GetAllByUserID(gomock.Any()).Return([]models.URLRecord{{ShortURL: "test", OriginalURL: "test"}}, nil),
+		store.EXPECT().GetAllByUserID(gomock.Any()).Return([]models.URLRecord{}, fmt.Errorf("test error")),
+	)
+
+	app := NewApp(testConfig, store, zap.L().Sugar())
+	r, err := app.SetupRouter()
+	if err != nil {
+		t.Error(err)
+	}
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	type args struct {
+		url      string
+		response string
+		wantCode int
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "no data",
+			args: args{
+				url:      "/api/user/urls",
+				response: "",
+				wantCode: http.StatusNoContent,
+			},
+		},
+		{
+			name: "successfull get",
+			args: args{
+				url:      "/api/user/urls",
+				response: "[{\"short_url\":\"test\",\"original_url\":\"test\"}]",
+				wantCode: http.StatusOK,
+			},
+		},
+		{
+			name: "error get",
+			args: args{
+				url:      "/api/user/urls",
+				response: "",
+				wantCode: http.StatusInternalServerError,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			url, err := url.JoinPath(srv.URL, tt.args.url)
+			if err != nil {
+				t.Error(err)
+			}
+
+			req, err := http.NewRequest(http.MethodGet, url, nil)
+			if err != nil {
+				t.Error(err)
+			}
+
+			res, err := srv.Client().Do(req)
+			if err != nil {
+				t.Error(err)
+			}
+			body, err := io.ReadAll(res.Body)
+			if err != nil {
+				t.Error(err)
+			}
+
+			if err := res.Body.Close(); err != nil {
+				t.Error(err)
+			}
+
+			assert.Equal(t, tt.args.wantCode, res.StatusCode)
+			assert.Equal(t, tt.args.response, string(body))
+		})
 	}
 }
 

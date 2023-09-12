@@ -13,8 +13,8 @@ require (
 	github.com/jackc/pgx/v5 v5.4.1
 	github.com/stretchr/testify v1.8.2
 	go.uber.org/zap v1.24.0
-	golang.org/x/tools v0.12.0
-	honnef.co/go/tools v0.4.5
+	golang.org/x/tools v0.12.1-0.20230825192346-2191a27a6dc5
+	honnef.co/go/tools v0.4.6
 )
 
 require (
