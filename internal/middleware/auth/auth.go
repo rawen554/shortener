@@ -21,7 +21,7 @@ type Claims struct {
 const (
 	tokenExp   = time.Hour * 3
 	maxAge     = 3600 * 24 * 30
-	cookieName = "jwt-token"
+	CookieName = "jwt-token"
 	UserIDKey  = "userID"
 )
 
@@ -29,12 +29,12 @@ var ErrTokenNotValid = errors.New("token is not valid")
 var ErrNoUserInToken = errors.New("no user data in token")
 var ErrBuildJWTString = errors.New("error building JWT string")
 
-func BuildJWTString(secret string) (string, error) {
+func BuildJWTString(secret string, userID string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenExp)),
 		},
-		UserID: uuid.New().String(),
+		UserID: userID,
 	})
 
 	tokenString, err := token.SignedString([]byte(secret))
@@ -69,19 +69,19 @@ func GetUserID(tokenString string, secret string) (string, error) {
 
 func AuthMiddleware(secret string, logger *zap.SugaredLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		cookie, err := c.Cookie(cookieName)
+		cookie, err := c.Cookie(CookieName)
 		if err != nil {
 			if errors.Is(err, http.ErrNoCookie) {
-				token, err := BuildJWTString(secret)
+				token, err := BuildJWTString(secret, uuid.New().String())
 				if err != nil {
 					logger.Error(ErrBuildJWTString, err)
 					c.AbortWithStatus(http.StatusInternalServerError)
 					return
 				}
-				c.SetCookie(cookieName, token, maxAge, "", "", false, true)
+				c.SetCookie(CookieName, token, maxAge, "", "", false, true)
 				cookie = token
 			} else {
-				logger.Error("Error reading cookie[%v]: %v", cookieName, err)
+				logger.Error("Error reading cookie[%v]: %v", CookieName, err)
 				c.AbortWithStatus(http.StatusInternalServerError)
 				return
 			}
@@ -94,7 +94,7 @@ func AuthMiddleware(secret string, logger *zap.SugaredLogger) gin.HandlerFunc {
 				return
 			}
 			if errors.Is(err, ErrTokenNotValid) {
-				token, err := BuildJWTString(secret)
+				token, err := BuildJWTString(secret, uuid.New().String())
 				if err != nil {
 					logger.Error(ErrBuildJWTString, err)
 					c.AbortWithStatus(http.StatusInternalServerError)
@@ -106,7 +106,7 @@ func AuthMiddleware(secret string, logger *zap.SugaredLogger) gin.HandlerFunc {
 					c.AbortWithStatus(http.StatusInternalServerError)
 					return
 				}
-				c.SetCookie(cookieName, token, maxAge, "", "", false, true)
+				c.SetCookie(CookieName, token, maxAge, "", "", false, true)
 			}
 		}
 

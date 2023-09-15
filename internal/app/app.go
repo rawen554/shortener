@@ -106,13 +106,7 @@ func (a *App) GetUserRecords(c *gin.Context) {
 		records[idx].ShortURL = resultURL
 	}
 
-	res.Header().Add(contentType, applicationJSON)
-	res.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(res).Encode(records); err != nil {
-		a.logger.Errorf(ErrorEncodeBody, err)
-		res.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	c.JSON(http.StatusOK, records)
 }
 
 func (a *App) RedirectToOriginal(c *gin.Context) {
@@ -136,8 +130,7 @@ func (a *App) RedirectToOriginal(c *gin.Context) {
 		return
 	}
 
-	res.Header().Set(location, originalURL)
-	res.WriteHeader(http.StatusTemporaryRedirect)
+	c.Redirect(http.StatusTemporaryRedirect, originalURL)
 }
 
 func (a *App) ShortenBatch(c *gin.Context) {
