@@ -14,26 +14,28 @@ var Analyzer = &analysis.Analyzer{
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	for _, file := range pass.Files {
-		if file.Name.Name == "main" {
-			ast.Inspect(file, func(node ast.Node) bool {
-				switch x := node.(type) {
-				case *ast.FuncDecl:
-					if x.Name.String() != "main" {
-						return false
-					}
-				case *ast.CallExpr:
-					if selexpr, ok := x.Fun.(*ast.SelectorExpr); ok {
-						if ident, ok := selexpr.X.(*ast.Ident); ok {
-							if ident.Name == "os" && selexpr.Sel.Name == "Exit" {
-								pass.Reportf(selexpr.Pos(), "calling os.Exit in main package main func")
-							}
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch x := node.(type) {
+			case *ast.File:
+				if x.Name.Name != "main" {
+					return false
+				}
+			case *ast.FuncDecl:
+				if x.Name.String() != "main" {
+					return false
+				}
+			case *ast.CallExpr:
+				if selexpr, ok := x.Fun.(*ast.SelectorExpr); ok {
+					if ident, ok := selexpr.X.(*ast.Ident); ok {
+						if ident.Name == "os" && selexpr.Sel.Name == "Exit" {
+							pass.Reportf(selexpr.Pos(), "calling os.Exit in main package main func")
 						}
 					}
 				}
+			}
 
-				return true
-			})
-		}
+			return true
+		})
 	}
 
 	//nolint: nilnil // expected
