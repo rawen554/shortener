@@ -3,6 +3,7 @@ module github.com/rawen554/shortener
 go 1.20
 
 require (
+	dario.cat/mergo v1.0.0
 	github.com/caarlos0/env/v6 v6.10.1
 	github.com/gin-contrib/pprof v1.4.0
 	github.com/gin-gonic/gin v1.9.0
