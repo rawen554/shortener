@@ -19,6 +19,7 @@ type ServerConfig struct {
 	Secret          string `json:"-" env:"SECRET"`
 	Config          string `json:"-" env:"CONFIG"`
 	EnableHTTPS     bool   `json:"enable_https" env:"ENABLE_HTTPS"`
+	ProfileMode     bool   `json:"profile_mode" env:"PROFILE_MODE"`
 }
 
 var config ServerConfig
@@ -26,6 +27,7 @@ var config ServerConfig
 func ParseFlags() (*ServerConfig, error) {
 	flag.StringVar(&config.RunAddr, "a", ":8080", "address and port to run server")
 	flag.BoolVar(&config.EnableHTTPS, "s", false, "enable https")
+	flag.BoolVar(&config.ProfileMode, "p", false, "register pprof profiler")
 	flag.StringVar(&config.RedirectBaseURL, "b", "http://localhost:8080", "server URI prefix")
 	flag.StringVar(&config.FileStoragePath, "f", "", "file storage path")
 	flag.StringVar(&config.DatabaseDSN, "d", "", "Data Source Name (DSN)")

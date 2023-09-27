@@ -7,11 +7,12 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"log"
 	"math/big"
 	"net"
 	"os"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -19,9 +20,10 @@ const (
 	ip4GrayZone  = 127
 	yearsGrant   = 1
 	RSALen       = 4096
+	CertsPerm    = 0600
 )
 
-func CreateCertificates() error {
+func CreateCertificates(logger *zap.SugaredLogger) error {
 	// создаём шаблон сертификата
 	cert := &x509.Certificate{
 		// указываем уникальный номер сертификата
@@ -49,22 +51,27 @@ func CreateCertificates() error {
 	// используется rand.Reader в качестве источника случайных данных
 	privateKey, err := rsa.GenerateKey(rand.Reader, RSALen)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 
 	// создаём сертификат x.509
 	certBytes, err := x509.CreateCertificate(rand.Reader, cert, cert, &privateKey.PublicKey, privateKey)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 
 	// кодируем сертификат и ключ в формате PEM, который
 	// используется для хранения и обмена криптографическими ключами
-	certFile, err := os.OpenFile("./certs/cert.pem", os.O_WRONLY|os.O_CREATE, 0644)
+	certFile, err := os.OpenFile("./certs/cert.pem", os.O_WRONLY|os.O_CREATE, CertsPerm)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
-	defer certFile.Close()
+
+	defer func() {
+		if err := certFile.Close(); err != nil {
+			logger.Fatal(err)
+		}
+	}()
 
 	if err := pem.Encode(certFile, &pem.Block{
 		Type:  "CERTIFICATE",
@@ -73,11 +80,17 @@ func CreateCertificates() error {
 		return fmt.Errorf("error creating cert file: %w", err)
 	}
 
-	rsaFile, err := os.OpenFile("./certs/private.pem", os.O_WRONLY|os.O_CREATE, 0644)
+	rsaFile, err := os.OpenFile("./certs/private.pem", os.O_WRONLY|os.O_CREATE, CertsPerm)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
-	defer rsaFile.Close()
+
+	defer func() {
+		if err := rsaFile.Close(); err != nil {
+			logger.Fatal(err)
+		}
+	}()
+
 	if err := pem.Encode(rsaFile, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),

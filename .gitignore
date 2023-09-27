@@ -33,3 +33,7 @@ db/data
 short-url-db.json
 golangci-lint
 profile.cov
+
+# Certs
+*.key
+*.pem

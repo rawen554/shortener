@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/rawen554/shortener/internal/app"
@@ -29,7 +29,7 @@ const (
 )
 
 func main() {
-	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancelCtx := signal.NotifyContext(context.Background(), syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
 
 	logger, err := logger.NewLogger()
 	if err != nil {
@@ -81,7 +81,7 @@ func main() {
 
 	go func(errs chan<- error) {
 		if config.EnableHTTPS {
-			if err := app.CreateCertificates(); err != nil {
+			if err := app.CreateCertificates(logger.Named("certs-builder")); err != nil {
 				errs <- fmt.Errorf("error creating tls certs: %w", err)
 			}
 

@@ -11,7 +11,9 @@ import (
 
 func (a *App) SetupRouter() (*gin.Engine, error) {
 	r := gin.New()
-	pprof.Register(r)
+	if a.config.ProfileMode {
+		pprof.Register(r)
+	}
 
 	r.Use(ginLogger.Logger(a.logger.Named("middleware")))
 	r.Use(auth.AuthMiddleware(a.config.Secret, a.logger.Named("auth_middleware")))
