@@ -18,16 +18,18 @@ type ServerConfig struct {
 	DatabaseDSN     string `json:"database_dsn" env:"DATABASE_DSN"`
 	Secret          string `json:"-" env:"SECRET"`
 	Config          string `json:"-" env:"CONFIG"`
+	EnableHTTPS     bool   `json:"enable_https" env:"ENABLE_HTTPS"`
 }
 
 var config ServerConfig
 
 func ParseFlags() (*ServerConfig, error) {
 	flag.StringVar(&config.RunAddr, "a", ":8080", "address and port to run server")
+	flag.BoolVar(&config.EnableHTTPS, "s", false, "enable https")
 	flag.StringVar(&config.RedirectBaseURL, "b", "http://localhost:8080", "server URI prefix")
 	flag.StringVar(&config.FileStoragePath, "f", "", "file storage path")
 	flag.StringVar(&config.DatabaseDSN, "d", "", "Data Source Name (DSN)")
-	flag.StringVar(&config.Secret, "s", "b4952c3809196592c026529df00774e46bfb5be0", "Secret")
+	flag.StringVar(&config.Secret, "e", "b4952c3809196592c026529df00774e46bfb5be0", "Secret")
 	flag.StringVar(&config.Config, "c", "", "Config json file path")
 	flag.Parse()
 
