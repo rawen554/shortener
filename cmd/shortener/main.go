@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -81,23 +82,36 @@ func main() {
 
 	go func(errs chan<- error) {
 		if config.EnableHTTPS {
-			if err := app.CreateCertificates(logger.Named("certs-builder")); err != nil {
-				errs <- fmt.Errorf("error creating tls certs: %w", err)
+			_, errCert := os.ReadFile(config.TLSCertPath)
+			_, errKey := os.ReadFile(config.TLSKeyPath)
+
+			if errors.Is(errCert, os.ErrNotExist) || errors.Is(errKey, os.ErrNotExist) {
+				privateKey, certBytes, err := app.CreateCertificates(logger.Named("certs-builder"))
+				if err != nil {
+					errs <- fmt.Errorf("error creating tls certs: %w", err)
+					return
+				}
+
+				if err := app.WriteCertificates(certBytes, config.TLSCertPath, privateKey, config.TLSKeyPath, logger); err != nil {
+					errs <- fmt.Errorf("error writing tls certs: %w", err)
+					return
+				}
 			}
 
-			if err := srv.ListenAndServeTLS("./certs/cert.pem", "./certs/private.pem"); err != nil {
+			if err := srv.ListenAndServeTLS(config.TLSCertPath, config.TLSKeyPath); err != nil {
 				if errors.Is(err, http.ErrServerClosed) {
 					return
 				}
 				errs <- fmt.Errorf("run tls server has failed: %w", err)
+				return
 			}
-		} else {
-			if err := srv.ListenAndServe(); err != nil {
-				if errors.Is(err, http.ErrServerClosed) {
-					return
-				}
-				errs <- fmt.Errorf("run server has failed: %w", err)
+		}
+
+		if err := srv.ListenAndServe(); err != nil {
+			if errors.Is(err, http.ErrServerClosed) {
+				return
 			}
+			errs <- fmt.Errorf("run server has failed: %w", err)
 		}
 	}(componentsErrs)
 
@@ -117,7 +131,7 @@ func main() {
 	select {
 	case <-ctx.Done():
 	case err := <-componentsErrs:
-		log.Print(err)
+		logger.Error(err)
 		cancelCtx()
 	}
 

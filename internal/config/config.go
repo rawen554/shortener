@@ -18,6 +18,8 @@ type ServerConfig struct {
 	DatabaseDSN     string `json:"database_dsn" env:"DATABASE_DSN"`
 	Secret          string `json:"-" env:"SECRET"`
 	Config          string `json:"-" env:"CONFIG"`
+	TLSCertPath     string `json:"tls_cert_path" env:"TLS_CERT_PATH"`
+	TLSKeyPath      string `json:"tls_key_path" env:"TLS_KEY_PATH"`
 	EnableHTTPS     bool   `json:"enable_https" env:"ENABLE_HTTPS"`
 	ProfileMode     bool   `json:"profile_mode" env:"PROFILE_MODE"`
 }
@@ -33,6 +35,8 @@ func ParseFlags() (*ServerConfig, error) {
 	flag.StringVar(&config.DatabaseDSN, "d", "", "Data Source Name (DSN)")
 	flag.StringVar(&config.Secret, "e", "b4952c3809196592c026529df00774e46bfb5be0", "Secret")
 	flag.StringVar(&config.Config, "c", "", "Config json file path")
+	flag.StringVar(&config.TLSCertPath, "l", "./certs/cert.pem", "path to tls cert file")
+	flag.StringVar(&config.TLSKeyPath, "k", "./certs/private.pem", "path to tls key file")
 	flag.Parse()
 
 	if err := env.Parse(&config); err != nil {
