@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/rawen554/shortener/internal/app"
@@ -29,7 +30,7 @@ const (
 )
 
 func main() {
-	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancelCtx := signal.NotifyContext(context.Background(), syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
 
 	logger, err := logger.NewLogger()
 	if err != nil {
@@ -68,9 +69,9 @@ func main() {
 
 	componentsErrs := make(chan error, 1)
 
-	app := app.NewApp(config, storage, logger.Named("app"))
+	a := app.NewApp(config, storage, logger.Named("app"))
 
-	r, err := app.SetupRouter()
+	r, err := a.SetupRouter()
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -80,6 +81,32 @@ func main() {
 	}
 
 	go func(errs chan<- error) {
+		if config.EnableHTTPS {
+			_, errCert := os.ReadFile(config.TLSCertPath)
+			_, errKey := os.ReadFile(config.TLSKeyPath)
+
+			if errors.Is(errCert, os.ErrNotExist) || errors.Is(errKey, os.ErrNotExist) {
+				privateKey, certBytes, err := app.CreateCertificates(logger.Named("certs-builder"))
+				if err != nil {
+					errs <- fmt.Errorf("error creating tls certs: %w", err)
+					return
+				}
+
+				if err := app.WriteCertificates(certBytes, config.TLSCertPath, privateKey, config.TLSKeyPath, logger); err != nil {
+					errs <- fmt.Errorf("error writing tls certs: %w", err)
+					return
+				}
+			}
+
+			if err := srv.ListenAndServeTLS(config.TLSCertPath, config.TLSKeyPath); err != nil {
+				if errors.Is(err, http.ErrServerClosed) {
+					return
+				}
+				errs <- fmt.Errorf("run tls server has failed: %w", err)
+				return
+			}
+		}
+
 		if err := srv.ListenAndServe(); err != nil {
 			if errors.Is(err, http.ErrServerClosed) {
 				return
@@ -104,7 +131,7 @@ func main() {
 	select {
 	case <-ctx.Done():
 	case err := <-componentsErrs:
-		log.Print(err)
+		logger.Error(err)
 		cancelCtx()
 	}
 

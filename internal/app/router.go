@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 	"github.com/rawen554/shortener/internal/middleware/compress"
@@ -11,10 +13,17 @@ import (
 
 func (a *App) SetupRouter() (*gin.Engine, error) {
 	r := gin.New()
-	pprof.Register(r)
+	if a.config.ProfileMode {
+		pprof.Register(r)
+	}
+
+	authMiddleware, err := auth.NewAuthMiddleware(a.config.Secret, a.logger.Named("auth_middleware"))
+	if err != nil {
+		return nil, fmt.Errorf("error initializing auth middleware: %w", err)
+	}
 
 	r.Use(ginLogger.Logger(a.logger.Named("middleware")))
-	r.Use(auth.AuthMiddleware(a.config.Secret, a.logger.Named("auth_middleware")))
+	r.Use(authMiddleware)
 	r.Use(compress.Compress())
 
 	r.GET("/:id", a.RedirectToOriginal)

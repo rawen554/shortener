@@ -67,7 +67,11 @@ func GetUserID(tokenString string, secret string) (string, error) {
 	return claims.UserID, nil
 }
 
-func AuthMiddleware(secret string, logger *zap.SugaredLogger) gin.HandlerFunc {
+func NewAuthMiddleware(secret string, logger *zap.SugaredLogger) (gin.HandlerFunc, error) {
+	if secret == "" {
+		return nil, fmt.Errorf("empty secret for signing token")
+	}
+
 	return func(c *gin.Context) {
 		cookie, err := c.Cookie(CookieName)
 		if err != nil {
@@ -112,5 +116,5 @@ func AuthMiddleware(secret string, logger *zap.SugaredLogger) gin.HandlerFunc {
 
 		c.Set(UserIDKey, userID)
 		c.Next()
-	}
+	}, nil
 }
