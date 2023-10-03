@@ -37,6 +37,7 @@ const (
 
 type Store interface {
 	Get(id string) (string, error)
+	GetStats() (*models.Stats, error)
 	GetAllByUserID(userID string) ([]models.URLRecord, error)
 	DeleteMany(ids models.DeleteUserURLsReq, userID string) error
 	Put(id string, shortURL string, userID string) (string, error)
@@ -259,4 +260,14 @@ func (a *App) Ping(c *gin.Context) {
 		return
 	}
 	c.Writer.WriteHeader(http.StatusOK)
+}
+
+func (a *App) GetStats(c *gin.Context) {
+	stats, err := a.store.GetStats()
+	if err != nil {
+		c.Writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
 }

@@ -17,6 +17,7 @@ import (
 // Store Интерфейс содержит все необходимые методы для работы сервиса.
 type Store interface {
 	Get(id string) (string, error)
+	GetStats() (*models.Stats, error)
 	GetAllByUserID(userID string) ([]models.URLRecord, error)
 	DeleteMany(ids models.DeleteUserURLsReq, userID string) error
 	Put(id string, shortURL string, userID string) (string, error)

@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/rawen554/shortener/internal/models"
@@ -95,4 +96,8 @@ func (s *MemoryStorage) Ping() error {
 
 func (s *MemoryStorage) Close() {
 
+}
+
+func (s *MemoryStorage) GetStats() (*models.Stats, error) {
+	return nil, fmt.Errorf("not implemented")
 }

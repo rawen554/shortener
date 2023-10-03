@@ -44,3 +44,8 @@ type ShortenReq struct {
 type ShortenRes struct {
 	Result string `json:"result"`
 }
+
+type Stats struct {
+	URLs  int `json:"urls"`
+	Users int `json:"users"`
+}

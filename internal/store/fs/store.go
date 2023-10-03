@@ -160,3 +160,7 @@ func (s *FSStorage) Put(id string, url string, userID string) (string, error) {
 			OriginalURL: url, ShortURL: id,
 		}})
 }
+
+func (s *FSStorage) GetStats() (*models.Stats, error) {
+	return nil, fmt.Errorf("not implemented")
+}

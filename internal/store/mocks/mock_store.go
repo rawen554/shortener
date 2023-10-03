@@ -90,6 +90,21 @@ func (mr *MockStoreMockRecorder) GetAllByUserID(userID interface{}) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllByUserID", reflect.TypeOf((*MockStore)(nil).GetAllByUserID), userID)
 }
 
+// GetStats mocks base method.
+func (m *MockStore) GetStats() (*models.Stats, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStats")
+	ret0, _ := ret[0].(*models.Stats)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStats indicates an expected call of GetStats.
+func (mr *MockStoreMockRecorder) GetStats() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStats", reflect.TypeOf((*MockStore)(nil).GetStats))
+}
+
 // Ping mocks base method.
 func (m *MockStore) Ping() error {
 	m.ctrl.T.Helper()
