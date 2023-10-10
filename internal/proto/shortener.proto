@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package shortener;
+
+option go_package = "github.com/rawen554/shortener/proto";
+
+service Shortener {
+  rpc CreateShortURL(CreateShortURLRequest) returns (CreateShortURLResponse);
+  rpc GetOriginalURL(GetOriginalURLRequest) returns (GetOriginalURLResponse);
+  rpc GetUserURLs(GetUserURLsRequest) returns (GetUserURLsResponse);
+  rpc BatchCreateShortURL(BatchCreateShortURLRequest) returns (BatchCreateShortURLResponse);
+  rpc DeleteUserURLsBatch(DeleteUserURLsBatchRequest) returns (DeleteUserURLsBatchResponse);
+  rpc GetStats(ServiceStatsRequest) returns (ServiceStatsResponse);
+}
+
+message ServiceStatsRequest {
+
+}
+
+message ServiceStatsResponse {
+  int64 urls = 1;
+  int64 users = 2;
+}
+
+message CreateShortURLRequest {
+  string user_id = 1;
+  string url = 2;
+}
+
+message CreateShortURLResponse {
+  string result = 1;
+}
+
+
+message BatchCreateShortURLRequestData {
+  string original_url = 1;
+  string correlation_id = 2;
+}
+
+message BatchCreateShortURLRequest {
+  repeated BatchCreateShortURLRequestData records = 1;
+  string user_id = 2;
+}
+
+message BatchCreateShortURLResponseData {
+  string short_url = 1;
+  string correlation_id = 2;
+}
+
+message BatchCreateShortURLResponse {
+  repeated BatchCreateShortURLResponseData records = 1;
+}
+
+message GetOriginalURLRequest {
+  string user_id = 1;
+  string url = 2;
+}
+
+message GetOriginalURLResponse {
+  string original_url = 1;
+}
+
+message GetUserURLsRequest {
+  string user_id = 1;
+}
+
+message ShortenData {
+  string short_url = 1;
+  string original_url = 2;
+}
+
+message GetUserURLsResponse {
+  repeated ShortenData records = 1;
+}
+
+
+message DeleteUserURLsBatchRequest {
+  string user_id = 1;
+  repeated string urls = 2;
+}
+
+message DeleteUserURLsBatchResponse {
+}

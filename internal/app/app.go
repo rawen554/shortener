@@ -1,20 +1,17 @@
 package app
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
-	"net/url"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/rawen554/shortener/internal/config"
+	"github.com/rawen554/shortener/internal/logic"
 	"github.com/rawen554/shortener/internal/middleware/auth"
 	"github.com/rawen554/shortener/internal/models"
-	"github.com/rawen554/shortener/internal/store/postgres"
 	"go.uber.org/zap"
 )
 
@@ -46,16 +43,16 @@ type Store interface {
 }
 
 type App struct {
-	config *config.ServerConfig
-	store  Store
-	logger *zap.SugaredLogger
+	config    *config.ServerConfig
+	logger    *zap.SugaredLogger
+	coreLogic *logic.CoreLogic
 }
 
-func NewApp(config *config.ServerConfig, store Store, logger *zap.SugaredLogger) *App {
+func NewApp(config *config.ServerConfig, coreLogic *logic.CoreLogic, logger *zap.SugaredLogger) *App {
 	return &App{
-		config: config,
-		store:  store,
-		logger: logger,
+		config:    config,
+		coreLogic: coreLogic,
+		logger:    logger,
 	}
 }
 
@@ -72,8 +69,7 @@ func (a *App) DeleteUserRecords(c *gin.Context) {
 	}
 
 	go func() {
-		err := a.store.DeleteMany(batch, userID)
-		if err != nil {
+		if err := a.coreLogic.DeleteUserRecords(c, userID, batch); err != nil {
 			a.logger.Errorf("error deleting: %v", err)
 		}
 	}()
@@ -85,26 +81,16 @@ func (a *App) GetUserRecords(c *gin.Context) {
 	res := c.Writer
 	userID := c.GetString(auth.UserIDKey)
 
-	records, err := a.store.GetAllByUserID(userID)
+	records, err := a.coreLogic.GetUserRecords(c, userID)
 	if err != nil {
+		if errors.Is(err, logic.ErrNoContent) {
+			res.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		a.logger.Errorf("Error getting all user urls: %v", err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
-	}
-
-	if len(records) == 0 {
-		res.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	for idx, urlObj := range records {
-		resultURL, err := url.JoinPath(a.config.RedirectBaseURL, urlObj.ShortURL)
-		if err != nil {
-			a.logger.Errorf(ErrorJoinURL, err)
-			res.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		records[idx].ShortURL = resultURL
 	}
 
 	c.JSON(http.StatusOK, records)
@@ -114,20 +100,20 @@ func (a *App) RedirectToOriginal(c *gin.Context) {
 	res := c.Writer
 	id := c.Param("id")
 
-	originalURL, err := a.store.Get(id)
+	originalURL, err := a.coreLogic.GetOriginalURL(c, id)
 	if err != nil {
-		if errors.Is(err, postgres.ErrURLDeleted) {
+		if errors.Is(err, logic.ErrIsDeleted) {
 			res.WriteHeader(http.StatusGone)
 			return
-		} else {
-			a.logger.Errorf("Error getting original URL: %v", err)
-			res.WriteHeader(http.StatusInternalServerError)
+		}
+
+		if errors.Is(err, logic.ErrNotFound) {
+			res.WriteHeader(http.StatusNotFound)
 			return
 		}
-	}
 
-	if originalURL == "" {
-		res.WriteHeader(http.StatusNotFound)
+		a.logger.Errorf("Error getting original URL: %v", err)
+		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -146,30 +132,14 @@ func (a *App) ShortenBatch(c *gin.Context) {
 		return
 	}
 
-	result, err := a.store.PutBatch(batch, userID)
+	result, err := a.coreLogic.ShortenBatch(c, userID, batch)
 	if err != nil {
 		a.logger.Errorf("Cant put batch: %v", err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	for idx, urlObj := range result {
-		resultURL, err := url.JoinPath(a.config.RedirectBaseURL, urlObj.CorrelationID)
-		if err != nil {
-			a.logger.Errorf(ErrorJoinURL, err)
-			res.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		result[idx].ShortURL = resultURL
-	}
-
-	res.WriteHeader(http.StatusCreated)
-	res.Header().Add(contentType, applicationJSON)
-	if err := json.NewEncoder(res).Encode(result); err != nil {
-		a.logger.Errorf(ErrorEncodeBody, err)
-		res.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	c.JSON(http.StatusCreated, result)
 }
 
 func (a *App) ShortenURL(c *gin.Context) {
@@ -198,34 +168,19 @@ func (a *App) ShortenURL(c *gin.Context) {
 		originalURL = string(body)
 	}
 
-	b := make([]byte, slugLength)
-	_, err := rand.Read(b)
+	resultURL, err := a.coreLogic.ShortenURL(c, userID, originalURL)
 	if err != nil {
-		a.logger.Errorf("Random string generator error: %v", err)
-		res.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	id := hex.EncodeToString(b)
-
-	id, err = a.store.Put(id, originalURL, userID)
-	if err != nil {
-		if errors.Is(err, postgres.ErrDBInsertConflict) {
+		if errors.Is(err, logic.ErrConflict) {
 			res.WriteHeader(http.StatusConflict)
-		} else {
-			a.logger.Errorf("Error saving data: %v", err)
-			res.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-	} else {
-		res.WriteHeader(http.StatusCreated)
-	}
 
-	resultURL, err := url.JoinPath(a.config.RedirectBaseURL, id)
-	if err != nil {
-		a.logger.Errorf(ErrorJoinURL, err)
+		a.logger.Errorf("Error saving data: %v", err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	res.WriteHeader(http.StatusCreated)
 
 	switch req.RequestURI {
 	case apiShortenPath:
@@ -254,7 +209,7 @@ func (a *App) ShortenURL(c *gin.Context) {
 }
 
 func (a *App) Ping(c *gin.Context) {
-	if err := a.store.Ping(); err != nil {
+	if err := a.coreLogic.Ping(c); err != nil {
 		a.logger.Errorf("Error opening connection to DB: %v", err)
 		c.Writer.WriteHeader(http.StatusInternalServerError)
 		return
@@ -263,8 +218,9 @@ func (a *App) Ping(c *gin.Context) {
 }
 
 func (a *App) GetStats(c *gin.Context) {
-	stats, err := a.store.GetStats()
+	stats, err := a.coreLogic.GetStats(c)
 	if err != nil {
+		a.logger.Errorf("error getting service stats: %v", err)
 		c.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}

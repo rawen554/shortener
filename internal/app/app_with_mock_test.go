@@ -14,6 +14,7 @@ import (
 	"github.com/golang/mock/gomock"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/rawen554/shortener/internal/config"
+	"github.com/rawen554/shortener/internal/logic"
 	"github.com/rawen554/shortener/internal/models"
 	"github.com/rawen554/shortener/internal/store/mocks"
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,8 @@ func Test_GetRecord(t *testing.T) {
 		store.EXPECT().Get("any").Return(link, nil),
 	)
 
-	app := NewApp(testConfig, store, zap.L().Sugar())
+	coreLogic := logic.NewCoreLogic(testConfig, store, zap.L().Sugar())
+	app := NewApp(testConfig, coreLogic, zap.L().Sugar())
 	r, err := app.SetupRouter()
 	if err != nil {
 		t.Error(err)
@@ -106,7 +108,8 @@ func Test_PutRecord(t *testing.T) {
 		store.EXPECT().Put(gomock.Any(), gomock.Any(), gomock.Any()).Return("link", nil),
 	)
 
-	app := NewApp(testConfig, store, zap.L().Sugar())
+	coreLogic := logic.NewCoreLogic(testConfig, store, zap.L().Sugar())
+	app := NewApp(testConfig, coreLogic, zap.L().Sugar())
 	r, err := app.SetupRouter()
 	if err != nil {
 		t.Error(err)
@@ -181,7 +184,8 @@ func TestApp_GetUserRecords(t *testing.T) {
 		store.EXPECT().GetAllByUserID(gomock.Any()).Return([]models.URLRecord{}, fmt.Errorf("test error")),
 	)
 
-	app := NewApp(testConfig, store, zap.L().Sugar())
+	coreLogic := logic.NewCoreLogic(testConfig, store, zap.L().Sugar())
+	app := NewApp(testConfig, coreLogic, zap.L().Sugar())
 	r, err := app.SetupRouter()
 	if err != nil {
 		t.Error(err)
@@ -268,7 +272,8 @@ func TestApp_DeleteUserRecords(t *testing.T) {
 		store.EXPECT().DeleteMany(models.DeleteUserURLsReq{"1", "2"}, gomock.Any()).Return(nil),
 	)
 
-	app := NewApp(testConfig, store, zap.L().Sugar())
+	coreLogic := logic.NewCoreLogic(testConfig, store, zap.L().Sugar())
+	app := NewApp(testConfig, coreLogic, zap.L().Sugar())
 	r, err := app.SetupRouter()
 	if err != nil {
 		t.Error(err)
@@ -353,7 +358,8 @@ func TestApp_Ping(t *testing.T) {
 		store.EXPECT().Ping().Return(fmt.Errorf("lost connection to db")),
 	)
 
-	app := NewApp(testConfig, store, zap.L().Sugar())
+	coreLogic := logic.NewCoreLogic(testConfig, store, zap.L().Sugar())
+	app := NewApp(testConfig, coreLogic, zap.L().Sugar())
 	r, err := app.SetupRouter()
 	if err != nil {
 		t.Error(err)
@@ -432,7 +438,8 @@ func TestApp_ShortenBatch(t *testing.T) {
 		}, nil),
 	)
 
-	app := NewApp(testConfig, store, zap.L().Sugar())
+	coreLogic := logic.NewCoreLogic(testConfig, store, zap.L().Sugar())
+	app := NewApp(testConfig, coreLogic, zap.L().Sugar())
 	r, err := app.SetupRouter()
 	if err != nil {
 		t.Error(err)

@@ -21,6 +21,7 @@ type ServerConfig struct {
 	TLSCertPath     string `json:"tls_cert_path" env:"TLS_CERT_PATH"`
 	TLSKeyPath      string `json:"tls_key_path" env:"TLS_KEY_PATH"`
 	TrustedSubnet   string `json:"trusted_subnet" env:"TRUSTED_SUBNET"`
+	GRPCPort        string `json:"grpc_port" env:"GRPC_PORT"`
 	EnableHTTPS     bool   `json:"enable_https" env:"ENABLE_HTTPS"`
 	ProfileMode     bool   `json:"profile_mode" env:"PROFILE_MODE"`
 }
@@ -39,6 +40,7 @@ func ParseFlags() (*ServerConfig, error) {
 	flag.StringVar(&config.TLSCertPath, "l", "./certs/cert.pem", "path to tls cert file")
 	flag.StringVar(&config.TLSKeyPath, "k", "./certs/private.pem", "path to tls key file")
 	flag.StringVar(&config.TrustedSubnet, "t", "", "trusted CIDR (ex. 192.168.0.0/24)")
+	flag.StringVar(&config.GRPCPort, "grpc", "", "will add listener to port if specified")
 	flag.Parse()
 
 	if err := env.Parse(&config); err != nil {

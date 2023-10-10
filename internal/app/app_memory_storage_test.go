@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/rawen554/shortener/internal/config"
+	"github.com/rawen554/shortener/internal/logic"
 	"github.com/rawen554/shortener/internal/middleware/auth"
 	"github.com/rawen554/shortener/internal/models"
 	"github.com/rawen554/shortener/internal/store/memory"
@@ -69,7 +70,8 @@ func Test_DeleteManyInMemory(t *testing.T) {
 				return
 			}
 
-			testApp := NewApp(testConfig, storage, zap.L().Sugar())
+			coreLogic := logic.NewCoreLogic(testConfig, storage, zap.L().Sugar())
+			testApp := NewApp(testConfig, coreLogic, zap.L().Sugar())
 			r, err := testApp.SetupRouter()
 			if err != nil {
 				t.Errorf(ErrorSetupRouter, err)
@@ -152,7 +154,8 @@ func TestApp_GetUserRecordsInMemory(t *testing.T) {
 				return
 			}
 
-			app := NewApp(testConfig, store, zap.L().Sugar())
+			coreLogic := logic.NewCoreLogic(testConfig, store, zap.L().Sugar())
+			app := NewApp(testConfig, coreLogic, zap.L().Sugar())
 			r, err := app.SetupRouter()
 			if err != nil {
 				t.Error(err)
@@ -206,7 +209,8 @@ func TestApp_PingInMemory(t *testing.T) {
 		return
 	}
 
-	app := NewApp(testConfig, store, zap.L().Sugar())
+	coreLogic := logic.NewCoreLogic(testConfig, store, zap.L().Sugar())
+	app := NewApp(testConfig, coreLogic, zap.L().Sugar())
 	r, err := app.SetupRouter()
 	if err != nil {
 		t.Error(err)
@@ -265,7 +269,8 @@ func TestApp_ShortenBatchInMemory(t *testing.T) {
 		return
 	}
 
-	app := NewApp(testConfig, store, zap.L().Sugar())
+	coreLogic := logic.NewCoreLogic(testConfig, store, zap.L().Sugar())
+	app := NewApp(testConfig, coreLogic, zap.L().Sugar())
 	r, err := app.SetupRouter()
 	if err != nil {
 		t.Error(err)
