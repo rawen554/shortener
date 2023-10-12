@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/rawen554/shortener/internal/models"
@@ -98,6 +97,19 @@ func (s *MemoryStorage) Close() {
 
 }
 
-func (s *MemoryStorage) GetStats() (*models.Stats, error) {
-	return nil, fmt.Errorf("not implemented")
+func (s *MemoryStorage) GetStats() (stats *models.Stats, err error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	usersIDs := make(map[string]interface{})
+
+	for _, record := range s.urls {
+		if _, ok := usersIDs[record.UserID]; !ok {
+			usersIDs[record.UserID] = nil
+		}
+	}
+
+	stats.Users = len(usersIDs)
+	stats.URLs = s.UrlsCount
+
+	return stats, nil
 }

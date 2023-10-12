@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package shortener;
+
+option go_package = "internal/handlers/proto";
+
+/* Shortener represents a URL shorten service. */
+service Shortener {
+  rpc CreateShortURL(CreateShortURLRequest) returns (CreateShortURLResponse); // Create new short link.
+  rpc GetOriginalURL(GetOriginalURLRequest) returns (GetOriginalURLResponse); // Get original link by short slug.
+  rpc GetUserURLs(GetUserURLsRequest) returns (GetUserURLsResponse); // Get all URLs associated with user.
+  rpc BatchCreateShortURL(BatchCreateShortURLRequest) returns (BatchCreateShortURLResponse); // Create many short links.
+  rpc DeleteUserURLsBatch(DeleteUserURLsBatchRequest) returns (DeleteUserURLsBatchResponse); // Delete many short links.
+  rpc GetStats(ServiceStatsRequest) returns (ServiceStatsResponse); // Get service stats.
+}
+
+/* ServiceStatsRequest represents a request from client. */
+message ServiceStatsRequest {
+
+}
+
+/* ServiceStatsResponse represents a response from server. */
+message ServiceStatsResponse {
+  int64 urls = 1; // Overall urls count.
+  int64 users = 2; // Overall users count.
+}
+
+/* CreateShortURLRequest represents a request from client. */
+message CreateShortURLRequest {
+  string user_id = 1;
+  string url = 2; // Original URL.
+}
+
+/* CreateShortURLResponse represents a response from server. */
+message CreateShortURLResponse {
+  string result = 1;
+}
+
+/* BatchCreateShortURLRequestData represents repeated data in BatchCreateShortURLRequest */
+message BatchCreateShortURLRequestData {
+  string original_url = 1;
+  string correlation_id = 2;
+}
+
+/* BatchCreateShortURLRequest represents a request from client. */
+message BatchCreateShortURLRequest {
+  repeated BatchCreateShortURLRequestData records = 1;
+  string user_id = 2;
+}
+
+/* BatchCreateShortURLResponseData represents repeated data in BatchCreateShortURLResponse */
+message BatchCreateShortURLResponseData {
+  string short_url = 1;
+  string correlation_id = 2;
+}
+
+/* BatchCreateShortURLResponse represents a response from server. */
+message BatchCreateShortURLResponse {
+  repeated BatchCreateShortURLResponseData records = 1;
+}
+
+/* GetOriginalURLRequest represents a request from client. */
+message GetOriginalURLRequest {
+  string user_id = 1;
+  string url = 2; // Short URL.
+}
+
+/* GetOriginalURLResponse represents a response from server. */
+message GetOriginalURLResponse {
+  string original_url = 1;
+}
+
+/* GetUserURLsRequest represents a request from client. */
+message GetUserURLsRequest {
+  string user_id = 1;
+}
+
+/* ShortenData represents repeated data in GetUserURLsResponse */
+message ShortenData {
+  string short_url = 1;
+  string original_url = 2;
+}
+
+/* GetUserURLsResponse represents a response from server. */
+message GetUserURLsResponse {
+  repeated ShortenData records = 1;
+}
+
+
+/* DeleteUserURLsBatchRequest represents a request from client. */
+message DeleteUserURLsBatchRequest {
+  string user_id = 1;
+  repeated string urls = 2;
+}
+
+/* DeleteUserURLsBatchResponse represents a response from server. */
+message DeleteUserURLsBatchResponse {
+}

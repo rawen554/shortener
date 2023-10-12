@@ -16,11 +16,10 @@ import (
 	"github.com/rawen554/shortener/internal/app"
 	"github.com/rawen554/shortener/internal/config"
 	"github.com/rawen554/shortener/internal/handlers"
+	pb "github.com/rawen554/shortener/internal/handlers/proto"
 	"github.com/rawen554/shortener/internal/logger"
 	"github.com/rawen554/shortener/internal/logic"
-	pb "github.com/rawen554/shortener/internal/proto"
 	"github.com/rawen554/shortener/internal/store"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -129,7 +128,9 @@ func main() {
 			defer wg.Done()
 			lis, err := net.Listen("tcp", fmt.Sprintf(":%s", config.GRPCPort))
 			if err != nil {
-				logger.Fatal("failed to listen:", zap.Error(err))
+				logger.Errorf("failed to listen: %w", err)
+				errs <- err
+				return
 			}
 			grpcServer := grpc.NewServer()
 			reflection.Register(grpcServer)

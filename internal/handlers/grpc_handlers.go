@@ -3,9 +3,9 @@ package handlers
 import (
 	"context"
 
+	pb "github.com/rawen554/shortener/internal/handlers/proto"
 	"github.com/rawen554/shortener/internal/logic"
 	"github.com/rawen554/shortener/internal/models"
-	pb "github.com/rawen554/shortener/internal/proto"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

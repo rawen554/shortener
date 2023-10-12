@@ -161,6 +161,11 @@ func (s *FSStorage) Put(id string, url string, userID string) (string, error) {
 		}})
 }
 
-func (s *FSStorage) GetStats() (*models.Stats, error) {
-	return nil, fmt.Errorf("not implemented")
+func (s *FSStorage) GetStats() (stats *models.Stats, err error) {
+	stats, err = s.MemoryStorage.GetStats()
+	if err != nil {
+		return nil, fmt.Errorf("fs storage error: %w", err)
+	}
+
+	return stats, nil
 }

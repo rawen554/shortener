@@ -6,7 +6,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-var mainName = "main"
+const mainName = "main"
 
 var Analyzer = &analysis.Analyzer{
 	Name: "osexitcheck",
