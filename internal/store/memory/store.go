@@ -96,3 +96,20 @@ func (s *MemoryStorage) Ping() error {
 func (s *MemoryStorage) Close() {
 
 }
+
+func (s *MemoryStorage) GetStats() (stats *models.Stats, err error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	usersIDs := make(map[string]interface{})
+
+	for _, record := range s.urls {
+		if _, ok := usersIDs[record.UserID]; !ok {
+			usersIDs[record.UserID] = nil
+		}
+	}
+
+	stats.Users = len(usersIDs)
+	stats.URLs = s.UrlsCount
+
+	return stats, nil
+}

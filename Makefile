@@ -55,3 +55,9 @@ test-coverage:
 	go test -v -coverpkg=./... -coverprofile=profile.cov ./...
 	go tool cover -func profile.cov
 	rm profile.cov
+
+.PHONY: proto-gen
+proto-gen:
+	protoc --go_out=. --go_opt=paths=import \
+		--go-grpc_out=. --go-grpc_opt=paths=import \
+		proto/shortener.proto

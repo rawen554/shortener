@@ -6,6 +6,8 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+const mainName = "main"
+
 var Analyzer = &analysis.Analyzer{
 	Name: "osexitcheck",
 	Doc:  "checks of calling os.Exit in main package main func",
@@ -17,11 +19,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch x := node.(type) {
 			case *ast.File:
-				if x.Name.Name != "main" {
+				if x.Name.Name != mainName {
 					return false
 				}
 			case *ast.FuncDecl:
-				if x.Name.String() != "main" {
+				if x.Name.String() != mainName {
 					return false
 				}
 			case *ast.CallExpr:

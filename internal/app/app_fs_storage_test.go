@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/rawen554/shortener/internal/config"
+	"github.com/rawen554/shortener/internal/logic"
 	"github.com/rawen554/shortener/internal/models"
 	"github.com/rawen554/shortener/internal/store/fs"
 	"github.com/stretchr/testify/assert"
@@ -90,7 +91,8 @@ func Test_redirectToOriginal(t *testing.T) {
 				}
 			}
 
-			testApp := NewApp(testConfig, storage, zap.L().Sugar())
+			coreLogic := logic.NewCoreLogic(testConfig, storage, zap.L().Sugar())
+			testApp := NewApp(testConfig, coreLogic, zap.L().Sugar())
 			r, err := testApp.SetupRouter()
 			if err != nil {
 				t.Errorf(ErrorSetupRouter, err)
@@ -163,7 +165,8 @@ func Test_shortURL_V1(t *testing.T) {
 				}
 			}
 
-			testApp := NewApp(testConfig, storage, zap.L().Sugar())
+			coreLogic := logic.NewCoreLogic(testConfig, storage, zap.L().Sugar())
+			testApp := NewApp(testConfig, coreLogic, zap.L().Sugar())
 			r, err := testApp.SetupRouter()
 			if err != nil {
 				t.Errorf(ErrorSetupRouter, err)
@@ -234,7 +237,8 @@ func Test_shortURL_V2(t *testing.T) {
 				}
 			}
 
-			testApp := NewApp(testConfig, storage, zap.L().Sugar())
+			coreLogic := logic.NewCoreLogic(testConfig, storage, zap.L().Sugar())
+			testApp := NewApp(testConfig, coreLogic, zap.L().Sugar())
 			r, err := testApp.SetupRouter()
 			if err != nil {
 				t.Errorf(ErrorSetupRouter, err)

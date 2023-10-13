@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,8 +15,13 @@ import (
 
 	"github.com/rawen554/shortener/internal/app"
 	"github.com/rawen554/shortener/internal/config"
+	"github.com/rawen554/shortener/internal/handlers"
+	pb "github.com/rawen554/shortener/internal/handlers/proto"
 	"github.com/rawen554/shortener/internal/logger"
+	"github.com/rawen554/shortener/internal/logic"
 	"github.com/rawen554/shortener/internal/store"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 var (
@@ -69,7 +75,8 @@ func main() {
 
 	componentsErrs := make(chan error, 1)
 
-	a := app.NewApp(config, storage, logger.Named("app"))
+	coreLogic := logic.NewCoreLogic(config, storage, logger.Named("logic"))
+	a := app.NewApp(config, coreLogic, logger.Named("app"))
 
 	r, err := a.SetupRouter()
 	if err != nil {
@@ -114,6 +121,32 @@ func main() {
 			errs <- fmt.Errorf("run server has failed: %w", err)
 		}
 	}(componentsErrs)
+
+	if config.GRPCPort != "" {
+		wg.Add(1)
+		go func(errs chan<- error) {
+			defer wg.Done()
+			lis, err := net.Listen("tcp", fmt.Sprintf(":%s", config.GRPCPort))
+			if err != nil {
+				logger.Errorf("failed to listen: %w", err)
+				errs <- err
+				return
+			}
+			grpcServer := grpc.NewServer()
+			reflection.Register(grpcServer)
+
+			pb.RegisterShortenerServer(grpcServer, handlers.NewService(logger, coreLogic))
+
+			logger.Infof("running gRPC service on %s", config.GRPCPort)
+
+			if err = grpcServer.Serve(lis); err != nil {
+				if errors.Is(err, grpc.ErrServerStopped) {
+					return
+				}
+				errs <- err
+			}
+		}(componentsErrs)
+	}
 
 	wg.Add(1)
 	go func() {

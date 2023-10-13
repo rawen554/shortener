@@ -160,3 +160,12 @@ func (s *FSStorage) Put(id string, url string, userID string) (string, error) {
 			OriginalURL: url, ShortURL: id,
 		}})
 }
+
+func (s *FSStorage) GetStats() (stats *models.Stats, err error) {
+	stats, err = s.MemoryStorage.GetStats()
+	if err != nil {
+		return nil, fmt.Errorf("fs storage error: %w", err)
+	}
+
+	return stats, nil
+}

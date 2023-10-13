@@ -22,6 +22,8 @@ func (a *App) SetupRouter() (*gin.Engine, error) {
 		return nil, fmt.Errorf("error initializing auth middleware: %w", err)
 	}
 
+	subnetAuthMiddleware := auth.NewSubnetChecker(a.config.TrustedSubnet, a.logger.Named("subnet_middleware"))
+
 	r.Use(ginLogger.Logger(a.logger.Named("middleware")))
 	r.Use(authMiddleware)
 	r.Use(compress.Compress())
@@ -32,6 +34,12 @@ func (a *App) SetupRouter() (*gin.Engine, error) {
 
 	api := r.Group("/api")
 	{
+		internalAPI := api.Group("/internal")
+		internalAPI.Use(subnetAuthMiddleware)
+		{
+			internalAPI.GET("/stats", a.GetStats)
+		}
+
 		shortenerAPI := api.Group("/shorten")
 		{
 			shortenerAPI.POST("", a.ShortenURL)
