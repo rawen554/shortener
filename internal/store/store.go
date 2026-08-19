@@ -6,13 +6,14 @@ import (
 	"context"
 	"fmt"
 
-	_ "github.com/golang/mock/mockgen/model"
 	"github.com/rawen554/shortener/internal/config"
 	"github.com/rawen554/shortener/internal/models"
 	"github.com/rawen554/shortener/internal/store/fs"
 	"github.com/rawen554/shortener/internal/store/memory"
 	"github.com/rawen554/shortener/internal/store/postgres"
 )
+
+//go:generate go run go.uber.org/mock/mockgen -source=store.go -destination=mocks/mock_store.go -package=mocks
 
 // Store Интерфейс содержит все необходимые методы для работы сервиса.
 type Store interface {
